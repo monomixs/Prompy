@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/auth_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/white"
     android:padding="24dp">
 
     <ImageView
@@ -14,8 +14,7 @@
         android:src="@android:drawable/ic_lock_idle_lock"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
-        app:tint="@color/black" />
+        app:layout_constraintTop_toTopOf="parent" />
 
     <TextView
         android:id="@+id/auth_title"
@@ -23,7 +22,6 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="24dp"
         android:text="Authentication Required"
-        android:textColor="@color/black"
         android:textSize="24sp"
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
@@ -36,7 +34,6 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:text="Please use fingerprint to continue"
-        android:textColor="@color/black"
         android:textSize="16sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -62,11 +59,11 @@
         app:layout_constraintTop_toBottomOf="@id/auth_status">
 
         <TextView
+            android:id="@+id/pin_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center_horizontal"
             android:text="Too many failures. Enter PIN"
-            android:textColor="@color/black"
             android:textSize="16sp" />
 
         <com.google.android.material.textfield.TextInputLayout

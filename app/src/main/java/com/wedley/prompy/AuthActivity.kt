@@ -31,15 +31,21 @@ class AuthActivity : AppCompatActivity() {
     private lateinit var pinContainer: LinearLayout
     private lateinit var pinInput: TextInputEditText
     private lateinit var btnSubmitPin: Button
+    private var currentOnSurfaceColor = Color.BLACK
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val sharedPrefs = getSharedPreferences("prompy_settings", MODE_PRIVATE)
+        val theme = sharedPrefs.getString("theme", "light")
+
+        // 1. Setup system bars immediately to avoid flashing
+        setupSystemBars(theme)
+
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(Color.WHITE, Color.WHITE),
-            navigationBarStyle = SystemBarStyle.light(Color.WHITE, Color.WHITE)
-        )
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_auth)
+
+        // 2. Apply theme colors to UI components
+        applyThemeToUI(theme)
 
         authStatus = findViewById(R.id.auth_status)
         btnRetryFingerprint = findViewById(R.id.btn_retry_fingerprint)
@@ -63,16 +69,24 @@ class AuthActivity : AppCompatActivity() {
             }
         }
 
-        // Start biometric prompt immediately
-        showBiometricPrompt()
+        // Check if biometric is enabled in settings
+        val isBiometricEnabled = sharedPrefs.getBoolean("biometric_enabled", true)
+
+        if (isBiometricEnabled) {
+            // Start biometric prompt immediately
+            showBiometricPrompt()
+        } else {
+            // If biometric is disabled, go straight to MainActivity
+            onAuthSuccess()
+        }
     }
 
     private fun resetToInitialState() {
         authStatus.text = "Please use fingerprint to continue"
-        authStatus.setTextColor(Color.BLACK)
+        authStatus.setTextColor(currentOnSurfaceColor)
         findViewById<ImageView>(R.id.auth_icon).apply {
             setImageResource(android.R.drawable.ic_lock_idle_lock)
-            imageTintList = android.content.res.ColorStateList.valueOf(Color.BLACK)
+            imageTintList = android.content.res.ColorStateList.valueOf(currentOnSurfaceColor)
         }
     }
 
@@ -140,17 +154,73 @@ class AuthActivity : AppCompatActivity() {
 
     private fun showPinEntry() {
         authStatus.text = "Too Many Failures"
-        authStatus.setTextColor(Color.BLACK)
+        authStatus.setTextColor(currentOnSurfaceColor)
         btnRetryFingerprint.visibility = View.GONE
         pinContainer.visibility = View.VISIBLE
         findViewById<ImageView>(R.id.auth_icon).apply {
             setImageResource(android.R.drawable.ic_lock_lock)
-            imageTintList = android.content.res.ColorStateList.valueOf(Color.BLACK)
+            imageTintList = android.content.res.ColorStateList.valueOf(currentOnSurfaceColor)
         }
+        findViewById<TextView>(R.id.pin_label).setTextColor(currentOnSurfaceColor)
     }
 
     private fun onAuthSuccess() {
         startActivity(Intent(this, MainActivity::class.java))
         finish()
+    }
+
+    private fun setupSystemBars(theme: String?) {
+        val (statusStyle, navStyle) = when (theme) {
+            "dark" -> {
+                val darkColor = Color.parseColor("#1C1B1F")
+                SystemBarStyle.dark(darkColor) to SystemBarStyle.dark(darkColor)
+            }
+            "amoled" -> {
+                SystemBarStyle.dark(Color.BLACK) to SystemBarStyle.dark(Color.BLACK)
+            }
+            else -> {
+                SystemBarStyle.light(Color.WHITE, Color.WHITE) to SystemBarStyle.light(Color.WHITE, Color.WHITE)
+            }
+        }
+        enableEdgeToEdge(statusBarStyle = statusStyle, navigationBarStyle = navStyle)
+    }
+
+    private fun applyThemeToUI(theme: String?) {
+        val surfaceColor: Int
+        val onSurfaceColor: Int
+
+        when (theme) {
+            "dark" -> {
+                surfaceColor = Color.parseColor("#1C1B1F")
+                onSurfaceColor = Color.parseColor("#E6E1E5")
+            }
+            "amoled" -> {
+                surfaceColor = Color.BLACK
+                onSurfaceColor = Color.parseColor("#E6E1E5")
+            }
+            else -> {
+                surfaceColor = Color.WHITE
+                onSurfaceColor = Color.BLACK
+            }
+        }
+        
+        currentOnSurfaceColor = onSurfaceColor
+
+        findViewById<View>(R.id.auth_root)?.let { root ->
+            root.setBackgroundColor(surfaceColor)
+            findViewById<TextView>(R.id.auth_title)?.setTextColor(onSurfaceColor)
+            findViewById<TextView>(R.id.auth_status)?.setTextColor(onSurfaceColor)
+            findViewById<ImageView>(R.id.auth_icon)?.imageTintList = 
+                android.content.res.ColorStateList.valueOf(onSurfaceColor)
+            
+            // PIN entry elements
+            findViewById<TextView>(R.id.pin_label)?.setTextColor(onSurfaceColor)
+            findViewById<com.google.android.material.textfield.TextInputLayout>(R.id.pin_input_layout)?.let { til ->
+                til.defaultHintTextColor = android.content.res.ColorStateList.valueOf(onSurfaceColor)
+                til.hintTextColor = android.content.res.ColorStateList.valueOf(onSurfaceColor)
+                til.setBoxStrokeColor(onSurfaceColor)
+            }
+            findViewById<TextInputEditText>(R.id.pin_input)?.setTextColor(onSurfaceColor)
+        }
     }
 }

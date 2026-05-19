@@ -19,6 +19,7 @@ import android.webkit.ValueCallback
 import android.webkit.WebChromeClient
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.webkit.JavascriptInterface
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.Toast
@@ -102,17 +103,17 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        val sharedPrefs = getSharedPreferences("prompy_settings", MODE_PRIVATE)
+        val theme = sharedPrefs.getString("theme", "light")
+        applyThemeBars(theme)
+
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.light(Color.WHITE, Color.WHITE),
-            navigationBarStyle = SystemBarStyle.light(Color.WHITE, Color.WHITE)
-        )
         super.onCreate(savedInstanceState)
 
         setContentView(R.layout.activity_main)
         
         val root = findViewById<LinearLayout>(R.id.main_root)
-        root.setBackgroundColor(Color.WHITE)
+        // Background is managed by the WebView's theme logic
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -162,6 +163,8 @@ class MainActivity : AppCompatActivity() {
             allowFileAccess = true
             allowContentAccess = true
         }
+
+        webView.addJavascriptInterface(WebAppInterface(this), "Android")
 
         // Keeps clicked links inside the app instead of opening Chrome
         webView.webViewClient = WebViewClient()
@@ -289,6 +292,77 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, "Image saved to Downloads", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Failed to save image", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    private fun applyThemeBars(theme: String?) {
+        val (statusStyle, navStyle) = when (theme) {
+            "dark" -> {
+                val darkColor = Color.parseColor("#1C1B1F")
+                SystemBarStyle.dark(darkColor) to SystemBarStyle.dark(darkColor)
+            }
+            "amoled" -> {
+                SystemBarStyle.dark(Color.BLACK) to SystemBarStyle.dark(Color.BLACK)
+            }
+            else -> {
+                SystemBarStyle.light(Color.WHITE, Color.WHITE) to SystemBarStyle.light(Color.WHITE, Color.WHITE)
+            }
+        }
+        runOnUiThread {
+            enableEdgeToEdge(statusBarStyle = statusStyle, navigationBarStyle = navStyle)
+        }
+    }
+
+    inner class WebAppInterface(private val mContext: Context) {
+        @JavascriptInterface
+        fun setBiometricEnabled(enabled: Boolean) {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            sharedPrefs.edit().putBoolean("biometric_enabled", enabled).apply()
+        }
+
+        @JavascriptInterface
+        fun isBiometricEnabled(): Boolean {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            return sharedPrefs.getBoolean("biometric_enabled", true)
+        }
+
+        @JavascriptInterface
+        fun updateTheme(theme: String) {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            sharedPrefs.edit().putString("theme", theme).apply()
+            applyThemeBars(theme)
+        }
+
+        @JavascriptInterface
+        fun updateStatusBarColor(colorHex: String?) {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            val theme = sharedPrefs.getString("theme", "light")
+            
+            runOnUiThread {
+                if (colorHex != null) {
+                    try {
+                        val color = Color.parseColor(colorHex)
+                        val navColor = when (theme) {
+                            "dark" -> Color.parseColor("#1C1B1F")
+                            "amoled" -> Color.BLACK
+                            else -> Color.WHITE
+                        }
+                        val navStyle = when (theme) {
+                            "dark", "amoled" -> SystemBarStyle.dark(navColor)
+                            else -> SystemBarStyle.light(navColor, navColor)
+                        }
+                        
+                        enableEdgeToEdge(
+                            statusBarStyle = SystemBarStyle.dark(color),
+                            navigationBarStyle = navStyle
+                        )
+                    } catch (e: Exception) {
+                        applyThemeBars(theme)
+                    }
+                } else {
+                    applyThemeBars(theme)
+                }
+            }
         }
     }
 
