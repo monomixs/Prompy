@@ -121,6 +121,8 @@
           min-height: 100dvh;
           overflow-x: hidden;
           -webkit-tap-highlight-color: transparent;
+          user-select: none;
+          -webkit-user-select: none;
         }
 
         ::-webkit-scrollbar { width: 4px; }
@@ -378,6 +380,7 @@
           padding: 13px 15px; font-family: 'Nunito', sans-serif;
           font-size: 15px; font-weight: 600; color: var(--clr-on-surface);
           outline: none; transition: border-color 200ms; resize: none;
+          user-select: text; -webkit-user-select: text;
         }
         .text-input::placeholder { color: var(--clr-outline); font-weight: 500; }
         .text-input:focus { border-color: var(--clr-primary); }
@@ -394,6 +397,7 @@
           border: none; background: transparent;
           font-family: 'Nunito', sans-serif; font-size: 14px; font-weight: 600;
           color: var(--clr-on-surface); outline: none; flex: 1; min-width: 80px; padding: 3px 0;
+          user-select: text; -webkit-user-select: text;
         }
 
         .drop-zone {
@@ -864,6 +868,7 @@
         <div class="modal-card" onclick="event.stopPropagation()">
             <h3 id="modal-title">Confirm</h3>
             <p id="modal-message"></p>
+            <div id="modal-custom-content"></div>
             <div class="modal-actions">
                 <button class="btn btn-surface" id="modal-cancel-btn" onclick="closeModal()">Cancel</button>
                 <button class="btn btn-filled" id="modal-confirm-btn">Confirm</button>
@@ -1099,6 +1104,24 @@
             <!-- Data -->
             <div class="settings-section">
                 <div class="settings-section-label">Data</div>
+                <div class="settings-item" onclick="handleExport(false)" role="button">
+                    <div class="settings-item-icon s-primary">
+                        <svg viewBox="0 0 24 24"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Export Prompts</h3>
+                        <p>Save all normal prompts to a ZIP file</p>
+                    </div>
+                </div>
+                <div class="settings-item" onclick="handleImport(false)" role="button">
+                    <div class="settings-item-icon s-secondary">
+                        <svg viewBox="0 0 24 24"><path d="M9 16h6v-6h4l-7-7-7 7h4v6zm-4 2h14v2H5v-2z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Import Prompts</h3>
+                        <p>Restore normal prompts from a ZIP file</p>
+                    </div>
+                </div>
                 <div class="settings-item" onclick="resetVaultPin()" role="button">
                     <div class="settings-item-icon s-error">
                         <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
@@ -1186,6 +1209,9 @@
             <div style="display: flex; gap: 8px;">
                 <button class="icon-btn" onclick="openFilterSheet()" aria-label="Filter">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+                </button>
+                <button class="icon-btn" onclick="showVaultDataOptions()" aria-label="Import or Export Vault">
+                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9V8h2v8zm4 0h-2V8h2v8z"/></svg>
                 </button>
                 <button class="icon-btn" onclick="openSearch(true)" aria-label="Search in vault">
                     <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
@@ -1360,18 +1386,27 @@
     let modalCallback = null;
 
     function showModal(title, msg, onConfirm, confirmText = 'Confirm', confirmClass = 'btn-filled') {
+      const el = document.getElementById('modal-overlay');
+      if (el.classList.contains('show')) return;
+
       document.getElementById('modal-title').textContent = title;
       document.getElementById('modal-message').textContent = msg;
+      document.getElementById('modal-custom-content').innerHTML = '';
       const confirmBtn = document.getElementById('modal-confirm-btn');
+      confirmBtn.style.display = '';
       confirmBtn.textContent = confirmText;
       confirmBtn.className = 'btn ' + confirmClass;
       modalCallback = onConfirm;
       confirmBtn.onclick = () => { if (modalCallback) modalCallback(); closeModal(); };
       document.getElementById('modal-overlay').classList.add('show');
+      history.pushState({ type: 'modal', id: 'modal-overlay' }, "");
     }
 
-    function closeModal() {
-      document.getElementById('modal-overlay').classList.remove('show');
+    function closeModal(fromBack = false) {
+      const el = document.getElementById('modal-overlay');
+      if (!el.classList.contains('show')) return;
+      if (!fromBack) { history.back(); return; }
+      el.classList.remove('show');
       modalCallback = null;
     }
 
@@ -1382,6 +1417,7 @@
       const el = document.getElementById(id);
       el.scrollTop = 0;
       requestAnimationFrame(() => { requestAnimationFrame(() => el.classList.add('open')); });
+      history.pushState({ type: 'screen', id: id }, "");
     }
     function closeScreen(id) { document.getElementById(id).classList.remove('open'); }
     function isOpen(id)      { return document.getElementById(id).classList.contains('open'); }
@@ -1487,6 +1523,7 @@
        CREATE / EDIT
     ════════════════════════════════════════════════════════ */
     function openCreate(forVault) {
+      if (isOpen('screen-create')) return;
       State.inVault   = forVault;
       State.editMode  = false;
       State.currentId = null;
@@ -1508,7 +1545,9 @@
       updateVaultStatusBar();
     }
 
-    function closeCreate() {
+    function closeCreate(fromBack = false) {
+      if (!isOpen('screen-create')) return;
+      if (!fromBack) { history.back(); return; }
       closeScreen('screen-create');
       setTimeout(() => {
         if (!isOpen('screen-view')) showFAB();
@@ -1620,6 +1659,7 @@
        VIEW SCREEN
     ════════════════════════════════════════════════════════ */
     function openView(id, inVault) {
+      if (isOpen('screen-view')) return;
       const pool = inVault ? LS.getVault() : LS.getPrompts();
       const p    = pool.find(x => x.id === id);
       if (!p) return;
@@ -1645,7 +1685,9 @@
       updateVaultStatusBar();
     }
 
-    function closeView() {
+    function closeView(fromBack = false) {
+      if (!isOpen('screen-view')) return;
+      if (!fromBack) { history.back(); return; }
       closeScreen('screen-view');
       setTimeout(() => {
         if (!isOpen('screen-create') && !isOpen('screen-search') && !isOpen('screen-vault')) showFAB();
@@ -1716,12 +1758,15 @@
        SETTINGS
     ════════════════════════════════════════════════════════ */
     function openSettings() {
+      if (isOpen('screen-settings')) return;
       document.getElementById('scrim').classList.add('show');
       hideFAB();
       openScreen('screen-settings');
     }
 
-    function closeSettings() {
+    function closeSettings(fromBack = false) {
+      if (!isOpen('screen-settings')) return;
+      if (!fromBack) { history.back(); return; }
       document.getElementById('scrim').classList.remove('show');
       // Close color picker if open
       const panel = document.getElementById('cp-panel');
@@ -1749,13 +1794,14 @@
     ════════════════════════════════════════════════════════ */
     function startVaultFlow() {
       closeSettings();
-      setTimeout(() => { LS.getPin() ? openPinEntry() : openPinSetup(); }, 360);
+      LS.getPin() ? openPinEntry() : openPinSetup();
     }
 
     /* ════════════════════════════════════════════════════════
        PIN SETUP
     ════════════════════════════════════════════════════════ */
     function openPinSetup() {
+      if (isOpen('screen-pin-setup')) return;
       State.pinSetupPhase  = 1;
       State.pinSetupFirst  = '';
       State.pinSetupBuffer = '';
@@ -1767,7 +1813,9 @@
       openScreen('screen-pin-setup');
     }
 
-    function closePinSetup() {
+    function closePinSetup(fromBack = false) {
+      if (!isOpen('screen-pin-setup')) return;
+      if (!fromBack) { history.back(); return; }
       State.pinSetupBuffer = ''; State.pinSetupFirst = ''; State.pinSetupPhase = 1;
       closeScreen('screen-pin-setup');
     }
@@ -1792,8 +1840,8 @@
           } else {
             if (State.pinSetupBuffer === State.pinSetupFirst) {
               LS.setPin(State.pinSetupBuffer);
-              closePinSetup();
-              setTimeout(openPinEntry, 380);
+              closePinSetup(true);
+              openPinEntry();
             } else {
               document.getElementById('pin-setup-err').textContent = "PINs don't match — try again";
               updatePinDots('setup', 4, true);
@@ -1814,6 +1862,7 @@
        PIN ENTRY
     ════════════════════════════════════════════════════════ */
     function openPinEntry() {
+      if (isOpen('screen-pin-entry')) return;
       State.pinEntryBuffer = '';
       updatePinDots('entry', 0, false);
       document.getElementById('pin-entry-err').textContent = '';
@@ -1821,7 +1870,11 @@
       openScreen('screen-pin-entry');
     }
 
-    function closePinEntry() { State.pinEntryBuffer = ''; closeScreen('screen-pin-entry'); }
+    function closePinEntry(fromBack = false) {
+      if (!isOpen('screen-pin-entry')) return;
+      if (!fromBack) { history.back(); return; }
+      State.pinEntryBuffer = ''; closeScreen('screen-pin-entry');
+    }
 
     function pressEntryKey(k) {
       if (k === 'del') {
@@ -1835,7 +1888,7 @@
       if (State.pinEntryBuffer.length === 4) {
         setTimeout(() => {
           if (State.pinEntryBuffer === LS.getPin()) {
-            closePinEntry(); setTimeout(openVault, 380);
+            closePinEntry(true); openVault();
           } else {
             document.getElementById('pin-entry-err').textContent = 'Incorrect PIN — try again';
             updatePinDots('entry', 4, true);
@@ -1887,11 +1940,14 @@
        VAULT SCREEN
     ════════════════════════════════════════════════════════ */
     function openVault() {
+      if (isOpen('screen-vault')) return;
       renderVault(); hideFAB(); openScreen('screen-vault');
       setTimeout(updateVaultStatusBar, 50);
     }
 
-    function closeVault() {
+    function closeVault(fromBack = false) {
+      if (!isOpen('screen-vault')) return;
+      if (!fromBack) { history.back(); return; }
       State.pinEntryBuffer = '';
       closeScreen('screen-vault');
       setTimeout(() => { if (!isOpen('screen-search') && !isOpen('screen-view')) showFAB(); }, 380);
@@ -1931,6 +1987,7 @@
        SEARCH SYSTEM
     ════════════════════════════════════════════════════════ */
     function openSearch(inVault) {
+      if (isOpen('screen-search')) return;
       State.searchInVault = inVault;
       State.searchTags    = [];
 
@@ -1949,7 +2006,9 @@
       setTimeout(() => document.getElementById('s-query').focus(), 400);
     }
 
-    function closeSearch() {
+    function closeSearch(fromBack = false) {
+      if (!isOpen('screen-search')) return;
+      if (!fromBack) { history.back(); return; }
       closeScreen('screen-search');
       setTimeout(() => {
         if (!isOpen('screen-view') && !isOpen('screen-vault')) showFAB();
@@ -2024,12 +2083,17 @@
        BOTTOM SHEET (FILTER)
     ════════════════════════════════════════════════════════ */
     function openFilterSheet() {
+      if (document.getElementById('filter-sheet-overlay').classList.contains('show')) return;
       renderFilterSheet();
       document.getElementById('filter-sheet-overlay').classList.add('show');
+      history.pushState({ type: 'overlay', id: 'filter-sheet-overlay' }, "");
     }
 
-    function closeFilterSheet() {
-      document.getElementById('filter-sheet-overlay').classList.remove('show');
+    function closeFilterSheet(fromBack = false) {
+      const el = document.getElementById('filter-sheet-overlay');
+      if (!el.classList.contains('show')) return;
+      if (!fromBack) { history.back(); return; }
+      el.classList.remove('show');
       // Refresh current screen
       if (isOpen('screen-search')) performSearch();
       else if (isOpen('screen-vault')) renderVault();
@@ -2589,12 +2653,181 @@
     }
 
     /* ════════════════════════════════════════════════════════
+       EXPORT / IMPORT
+    ════════════════════════════════════════════════════════ */
+    function handleExport(isVault, password = null) {
+      const prompts = isVault ? LS.getVault() : LS.getPrompts();
+      if (!prompts.length) {
+        showToast('No prompts to export!');
+        return;
+      }
+
+      const fileName = isVault ? `Prompy_Vault_Export_${Date.now()}.zip` : `Prompy_Prompts_Export_${Date.now()}.zip`;
+
+      if (window.Android && window.Android.exportPrompts) {
+        // Tag each prompt with its vault status just in case
+        const data = prompts.map(p => ({ ...p, isVault: !!isVault }));
+        window.Android.exportPrompts(JSON.stringify(data), fileName, password);
+      } else {
+        showToast('Native export not available');
+      }
+    }
+
+    function handleImport(isVault) {
+      if (window.Android && window.Android.importPrompts) {
+        // We pass a global callback name for the native side to call
+        window._onImportComplete = (jsonResult) => {
+          if (!jsonResult) return;
+          try {
+            const imported = Array.isArray(jsonResult) ? jsonResult : [];
+            if (!imported.length) {
+              showToast('No valid prompts found in ZIP');
+              return;
+            }
+
+            let normalCount = 0;
+            let vaultCount = 0;
+
+            const existingPrompts = LS.getPrompts();
+            const existingVault   = LS.getVault();
+
+            imported.forEach(p => {
+              if (!p.id) p.id = uid(); // Ensure ID
+
+              // Determine if it goes to vault or normal based on:
+              // 1. Where the user clicked "Import" (the argument isVault)
+              // 2. What the prompt data says (p.isVault)
+              // We prioritize where the user clicked.
+
+              const targetVault = isVault || p.isVault;
+
+              if (targetVault) {
+                if (!existingVault.some(x => x.id === p.id)) {
+                  existingVault.push(p);
+                  vaultCount++;
+                }
+              } else {
+                if (!existingPrompts.some(x => x.id === p.id)) {
+                  existingPrompts.push(p);
+                  normalCount++;
+                }
+              }
+            });
+
+            LS.setPrompts(existingPrompts);
+            LS.setVault(existingVault);
+
+            renderDashboard();
+            renderVault();
+
+            const total = normalCount + vaultCount;
+            if (total > 0) {
+              showToast(`Imported ${total} prompts!`);
+            } else {
+              showToast('No new prompts imported (duplicates ignored)');
+            }
+          } catch (e) {
+            console.error(e);
+            showToast('Import failed: invalid data');
+          }
+          delete window._onImportComplete;
+        };
+        window.Android.importPrompts('_onImportComplete');
+      } else {
+        showToast('Native import not available');
+      }
+    }
+
+    function showVaultDataOptions() {
+      showModal('Vault Data', 'Choose an action for your secure prompts.', null, 'Export', 'btn-filled');
+
+      const confirmBtn = document.getElementById('modal-confirm-btn');
+      const cancelBtn  = document.getElementById('modal-cancel-btn');
+
+      cancelBtn.textContent = 'Import ZIP';
+      cancelBtn.onclick = () => {
+        closeModal();
+        handleImport(true);
+      };
+
+      confirmBtn.onclick = () => {
+        showZipTypeChoice();
+      };
+    }
+
+    function showZipTypeChoice() {
+      document.getElementById('modal-custom-content').innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px;">
+            <button class="btn btn-tonal" style="font-size:14px" onclick="handleExport(true); closeModal();">Normal ZIP (No Password)</button>
+            <button class="btn btn-filled" style="font-size:14px" onclick="showPasswordOptions()">Password Protected ZIP</button>
+        </div>
+      `;
+      document.getElementById('modal-title').textContent = 'ZIP Type';
+      document.getElementById('modal-message').textContent = 'Protect your vault export with a password?';
+      document.getElementById('modal-confirm-btn').style.display = 'none';
+      document.getElementById('modal-cancel-btn').textContent = 'Cancel';
+    }
+
+    function showPasswordOptions() {
+      const vaultPin = LS.getPin() || '';
+      document.getElementById('modal-custom-content').innerHTML = `
+        <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px;">
+            <button class="btn btn-tonal" style="font-size:14px" onclick="handleExport(true, '${vaultPin}'); closeModal();">Use Vault PIN as Password</button>
+            <button class="btn btn-filled" style="font-size:14px" onclick="showCustomPasswordInput()">Use Custom Password</button>
+        </div>
+      `;
+      document.getElementById('modal-title').textContent = 'Password';
+      document.getElementById('modal-message').textContent = 'Choose a password for your protected ZIP.';
+    }
+
+    function showCustomPasswordInput() {
+      document.getElementById('modal-custom-content').innerHTML = `
+        <div style="margin-top:16px;">
+            <input type="text" id="custom-zip-pw" class="text-input" placeholder="Enter password..." autocomplete="off" style="margin-bottom:12px">
+            <button class="btn btn-filled" style="width:100%" onclick="confirmCustomPassword()">Save & Download</button>
+        </div>
+      `;
+      document.getElementById('modal-title').textContent = 'Custom Password';
+      document.getElementById('modal-message').textContent = 'Enter the password for your ZIP file.';
+      setTimeout(() => document.getElementById('custom-zip-pw').focus(), 50);
+    }
+
+    function confirmCustomPassword() {
+      const pw = document.getElementById('custom-zip-pw').value.trim();
+      if (!pw) { showToast('Please enter a password'); return; }
+      handleExport(true, pw);
+      closeModal();
+    }
+
+    /* ════════════════════════════════════════════════════════
        INIT
     ════════════════════════════════════════════════════════ */
     initDarkMode();
     initThemeColor();
     initBiometricSetting();
     renderDashboard();
+
+    window.addEventListener('popstate', function(event) {
+      if (document.getElementById('modal-overlay').classList.contains('show')) {
+        closeModal(true);
+      } else if (document.getElementById('filter-sheet-overlay').classList.contains('show')) {
+        closeFilterSheet(true);
+      } else if (isOpen('screen-create')) {
+        closeCreate(true);
+      } else if (isOpen('screen-view')) {
+        closeView(true);
+      } else if (isOpen('screen-search')) {
+        closeSearch(true);
+      } else if (isOpen('screen-vault')) {
+        closeVault(true);
+      } else if (isOpen('screen-pin-setup')) {
+        closePinSetup(true);
+      } else if (isOpen('screen-pin-entry')) {
+        closePinEntry(true);
+      } else if (isOpen('screen-settings')) {
+        closeSettings(true);
+      }
+    });
 </script>
 </body>
 </html>
