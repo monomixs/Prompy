@@ -1099,6 +1099,24 @@
                         <span class="toggle-track"><span class="toggle-thumb"></span></span>
                     </label>
                 </label>
+                <div class="settings-item" onclick="openPinSetup('app')" role="button">
+                    <div class="settings-item-icon s-secondary">
+                        <svg viewBox="0 0 24 24"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v2h1.99l.01-2h2v-2h-8.35zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Reset App PIN</h3>
+                        <p>Change the PIN used for app entry fallback</p>
+                    </div>
+                </div>
+                <div class="settings-item" onclick="openPinSetup('vault')" role="button">
+                    <div class="settings-item-icon s-primary">
+                        <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Change Vault PIN</h3>
+                        <p>Update your 4-digit vault security code</p>
+                    </div>
+                </div>
             </div>
 
             <!-- Data -->
@@ -1141,7 +1159,7 @@
                         <svg viewBox="0 0 24 24"><path d="M9 21h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.58 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2zM9 9l4.34-4.34L12 10h9v2l-3 7H9V9zM1 9h4v12H1z"/></svg>
                     </div>
                     <div class="settings-item-text">
-                        <h3>Prompy v1.0</h3>
+                        <h3>Prompy v4,0 Beta</h3>
                         <p>100% offline · Zero data leaves your device</p>
                     </div>
                 </div>
@@ -1326,6 +1344,8 @@
       searchInVault: false,
       searchTags:    [],
       sortBy:        'Newest',
+      isBiometricSetup: false,
+      pinSetupTarget: 'vault', // 'vault' or 'app'
     };
 
     /* ════════════════════════════════════════════════════════
@@ -1335,6 +1355,7 @@
       PROMPTS: 'prompy_prompts',
       VAULT:   'prompy_vault',
       PIN:     'prompy_pin',
+      APP_PIN: 'prompy_app_pin',
 
       get(key) {
         try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
@@ -1349,8 +1370,23 @@
       getVault()      { return (this.get(this.VAULT) || []).filter(p => p && p.id); },
       setVault(arr)   { this.set(this.VAULT, arr); },
       getPin()        { return this.get(this.PIN); },
-      setPin(pin)     { this.set(this.PIN, pin); },
-      clearPin()      { localStorage.removeItem(this.PIN); },
+      setPin(pin)     {
+        this.set(this.PIN, pin);
+        if (window.Android && window.Android.setVaultPin) window.Android.setVaultPin(pin);
+      },
+      getAppPin()     { return this.get(this.APP_PIN); },
+      setAppPin(pin)  {
+        this.set(this.APP_PIN, pin);
+        if (window.Android && window.Android.setAppPin) window.Android.setAppPin(pin);
+      },
+      clearPin()      {
+        localStorage.removeItem(this.PIN);
+        if (window.Android && window.Android.setVaultPin) window.Android.setVaultPin(null);
+      },
+      clearAppPin()   {
+        localStorage.removeItem(this.APP_PIN);
+        if (window.Android && window.Android.setAppPin) window.Android.setAppPin(null);
+      }
     };
 
     /* ════════════════════════════════════════════════════════
@@ -1392,6 +1428,11 @@
       document.getElementById('modal-title').textContent = title;
       document.getElementById('modal-message').textContent = msg;
       document.getElementById('modal-custom-content').innerHTML = '';
+
+      const cancelBtn = document.getElementById('modal-cancel-btn');
+      cancelBtn.textContent = 'Cancel';
+      cancelBtn.onclick = () => closeModal();
+
       const confirmBtn = document.getElementById('modal-confirm-btn');
       confirmBtn.style.display = '';
       confirmBtn.textContent = confirmText;
@@ -1800,14 +1841,25 @@
     /* ════════════════════════════════════════════════════════
        PIN SETUP
     ════════════════════════════════════════════════════════ */
-    function openPinSetup() {
+    function openPinSetup(target = 'vault') {
       if (isOpen('screen-pin-setup')) return;
+      State.pinSetupTarget = target;
       State.pinSetupPhase  = 1;
       State.pinSetupFirst  = '';
       State.pinSetupBuffer = '';
       updatePinDots('setup', 0, false);
-      document.getElementById('pin-setup-title').textContent = 'Create Your PIN';
-      document.getElementById('pin-setup-sub').textContent   = 'Choose a 4-digit PIN to protect your vault';
+
+      const title = document.getElementById('pin-setup-title');
+      const sub   = document.getElementById('pin-setup-sub');
+
+      if (target === 'app') {
+        title.textContent = 'App Entry PIN';
+        sub.textContent   = 'This PIN is required if fingerprint fails';
+      } else {
+        title.textContent = 'Create Your PIN';
+        sub.textContent   = 'Choose a 4-digit PIN to protect your vault';
+      }
+
       document.getElementById('pin-setup-err').textContent   = '';
       buildKeypad('setup-keypad', pressSetupKey);
       openScreen('screen-pin-setup');
@@ -1839,9 +1891,22 @@
             document.getElementById('pin-setup-err').textContent   = '';
           } else {
             if (State.pinSetupBuffer === State.pinSetupFirst) {
-              LS.setPin(State.pinSetupBuffer);
+              if (State.pinSetupTarget === 'app') {
+                LS.setAppPin(State.pinSetupBuffer);
+              } else {
+                LS.setPin(State.pinSetupBuffer);
+              }
+
               closePinSetup(true);
-              openPinEntry();
+              if (State.isBiometricSetup) {
+                State.isBiometricSetup = false;
+                enableBiometrics(true);
+                showToast('🔒 Biometric lock enabled');
+              } else if (State.pinSetupTarget === 'vault') {
+                openPinEntry();
+              } else {
+                showToast('✅ App PIN updated');
+              }
             } else {
               document.getElementById('pin-setup-err').textContent = "PINs don't match — try again";
               updatePinDots('setup', 4, true);
@@ -2618,14 +2683,28 @@
     }
 
     function handleBiometricToggle(enabled) {
+      if (enabled && !LS.getAppPin()) {
+        State.isBiometricSetup = true;
+        showModal('PIN Required', 'Biometric lock requires a backup PIN for the app. Create one now?', () => {
+          openPinSetup('app');
+        }, 'Set PIN');
+        document.getElementById('biometric-toggle').checked = false;
+        return;
+      }
+
+      enableBiometrics(enabled);
+    }
+
+    function enableBiometrics(enabled) {
       if (window.Android && window.Android.setBiometricEnabled) {
         window.Android.setBiometricEnabled(enabled);
       }
       localStorage.setItem('prompy_biometric_enabled', enabled);
+      document.getElementById('biometric-toggle').checked = enabled;
     }
 
     function initBiometricSetting() {
-      let enabled = true;
+      let enabled = false;
       if (window.Android && window.Android.isBiometricEnabled) {
         enabled = window.Android.isBiometricEnabled();
       } else {
@@ -2765,7 +2844,9 @@
       document.getElementById('modal-title').textContent = 'ZIP Type';
       document.getElementById('modal-message').textContent = 'Protect your vault export with a password?';
       document.getElementById('modal-confirm-btn').style.display = 'none';
-      document.getElementById('modal-cancel-btn').textContent = 'Cancel';
+      const cBtn = document.getElementById('modal-cancel-btn');
+      cBtn.textContent = 'Cancel';
+      cBtn.onclick = () => closeModal();
     }
 
     function showPasswordOptions() {

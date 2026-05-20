@@ -10,6 +10,7 @@ import android.content.pm.PackageManager
 import android.graphics.Color
 import android.media.MediaScannerConnection
 import android.net.Uri
+import android.text.InputType
 import android.os.Build
 import android.os.Bundle
 import android.os.Environment
@@ -41,6 +42,7 @@ import java.io.BufferedOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.io.ByteArrayInputStream
+import net.lingala.zip4j.ZipFile
 import net.lingala.zip4j.model.ZipParameters
 import net.lingala.zip4j.model.enums.EncryptionMethod
 import net.lingala.zip4j.model.enums.AesKeyStrength
@@ -170,16 +172,141 @@ class MainActivity : AppCompatActivity() {
     }
 
     private var importCallback: ValueCallback<String>? = null
+    private var pendingImportUri: Uri? = null
+
     private val zipPickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             result.data?.data?.let { uri ->
-                val jsonResult = handleZipImport(uri)
-                importCallback?.onReceiveValue(jsonResult)
+                pendingImportUri = uri
+                checkZipSecurity(uri)
             }
         } else {
             importCallback?.onReceiveValue(null)
+            importCallback = null
+            pendingImportUri = null
         }
-        importCallback = null
+    }
+
+    private fun checkZipSecurity(uri: Uri) {
+        try {
+            val tempFile = File(cacheDir, "import_temp.zip")
+            contentResolver.openInputStream(uri)?.use { input ->
+                tempFile.outputStream().use { output ->
+                    input.copyTo(output)
+                }
+            }
+
+            val zipFile = net.lingala.zip4j.ZipFile(tempFile)
+            if (zipFile.isEncrypted) {
+                showPasswordInputDialog(tempFile)
+            } else {
+                val jsonResult = handleZip4jImport(tempFile, null)
+                importCallback?.onReceiveValue(jsonResult)
+                importCallback = null
+                tempFile.delete()
+            }
+        } catch (e: Exception) {
+            Toast.makeText(this, "Failed to read ZIP: ${e.message}", Toast.LENGTH_SHORT).show()
+            importCallback?.onReceiveValue(null)
+            importCallback = null
+        }
+    }
+
+    private fun showPasswordInputDialog(zipFile: File) {
+        val sharedPrefs = getSharedPreferences("prompy_settings", MODE_PRIVATE)
+        val onSurfaceColor = if (sharedPrefs.getString("theme", "light") == "light") Color.BLACK else Color.WHITE
+
+        val til = com.google.android.material.textfield.TextInputLayout(this).apply {
+            hint = "Enter ZIP Password"
+            boxBackgroundMode = com.google.android.material.textfield.TextInputLayout.BOX_BACKGROUND_OUTLINE
+            setBoxCornerRadii(16f, 16f, 16f, 16f)
+            endIconMode = com.google.android.material.textfield.TextInputLayout.END_ICON_PASSWORD_TOGGLE
+        }
+        
+        val input = com.google.android.material.textfield.TextInputEditText(this).apply {
+            inputType = android.text.InputType.TYPE_CLASS_TEXT or android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD
+        }
+        til.addView(input)
+
+        val container = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            val margin = (24 * resources.displayMetrics.density).toInt()
+            setPadding(margin, (8 * resources.displayMetrics.density).toInt(), margin, 0)
+            addView(til)
+        }
+
+        showPrompyDialog(
+            title = "Password Protected",
+            message = "This backup is encrypted. Please enter the password to restore prompts.",
+            customView = container,
+            confirmText = "Unlock",
+            onConfirm = {
+                val password = input.text.toString()
+                val jsonResult = handleZip4jImport(zipFile, password)
+                if (jsonResult == "[]" || jsonResult == "null") {
+                    Toast.makeText(this, "Incorrect password or invalid ZIP", Toast.LENGTH_SHORT).show()
+                    importCallback?.onReceiveValue(null)
+                } else {
+                    importCallback?.onReceiveValue(jsonResult)
+                }
+                importCallback = null
+                zipFile.delete()
+            },
+            onCancel = {
+                importCallback?.onReceiveValue(null)
+                importCallback = null
+                zipFile.delete()
+            }
+        )
+    }
+
+    private fun handleZip4jImport(file: File, password: String?): String {
+        val prompts = JSONArray()
+        try {
+            val zipFile = if (password != null) {
+                net.lingala.zip4j.ZipFile(file, password.toCharArray())
+            } else {
+                net.lingala.zip4j.ZipFile(file)
+            }
+
+            if (!zipFile.isValidZipFile) return "[]"
+
+            val folderDataMap = mutableMapOf<String, JSONObject>()
+            val folderImageMap = mutableMapOf<String, ByteArray>()
+
+            for (fileHeader in zipFile.fileHeaders) {
+                if (!fileHeader.isDirectory) {
+                    val pathParts = fileHeader.fileName.split("/")
+                    if (pathParts.size >= 2) {
+                        val folderName = pathParts[pathParts.size - 2]
+                        val fileName = pathParts.last()
+
+                        if (fileName == "prompt_info.txt") {
+                            zipFile.getInputStream(fileHeader).use { it.bufferedReader().readText() }.let {
+                                folderDataMap[folderName] = JSONObject(it)
+                            }
+                        } else if (fileName == "image.png") {
+                            zipFile.getInputStream(fileHeader).use { it.readBytes() }.let {
+                                folderImageMap[folderName] = it
+                            }
+                        }
+                    }
+                }
+            }
+
+            for ((folder, data) in folderDataMap) {
+                val imageBytes = folderImageMap[folder]
+                if (imageBytes != null) {
+                    val base64Image = "data:image/png;base64," + AndroidBase64.encodeToString(imageBytes, AndroidBase64.NO_WRAP)
+                    data.put("image", base64Image)
+                }
+                prompts.put(data)
+            }
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return "[]"
+        }
+        return prompts.toString()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -372,50 +499,6 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun handleZipImport(uri: Uri): String {
-        val prompts = JSONArray()
-        try {
-            contentResolver.openInputStream(uri)?.use { inputStream ->
-                ZipInputStream(inputStream).use { zipInputStream ->
-                    var entry: ZipEntry? = zipInputStream.getNextEntry()
-                    val folderDataMap = mutableMapOf<String, JSONObject>()
-                    val folderImageMap = mutableMapOf<String, ByteArray>()
-
-                    while (entry != null) {
-                        if (!entry.isDirectory) {
-                            val pathParts = entry.name.split("/")
-                            if (pathParts.size >= 2) {
-                                val folderName = pathParts[pathParts.size - 2]
-                                val fileName = pathParts.last()
-
-                                if (fileName == "prompt_info.txt") {
-                                    val content = zipInputStream.bufferedReader().readText()
-                                    folderDataMap[folderName] = JSONObject(content)
-                                } else if (fileName.startsWith("image.")) {
-                                    folderImageMap[folderName] = zipInputStream.readBytes()
-                                }
-                            }
-                        }
-                        zipInputStream.closeEntry()
-                        entry = zipInputStream.getNextEntry()
-                    }
-
-                    for ((folder, data) in folderDataMap) {
-                        val imageBytes = folderImageMap[folder]
-                        if (imageBytes != null) {
-                            val base64Image = "data:image/png;base64," + AndroidBase64.encodeToString(imageBytes, AndroidBase64.NO_WRAP)
-                            data.put("image", base64Image)
-                        }
-                        prompts.put(data)
-                    }
-                }
-            }
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return prompts.toString()
-    }
-
     private fun applyThemeBars(theme: String?) {
         val (statusStyle, navStyle) = when (theme) {
             "dark" -> {
@@ -442,9 +525,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun setAppPin(pin: String?) {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            sharedPrefs.edit().putString("app_pin", pin).apply()
+        }
+
+        @JavascriptInterface
+        fun setVaultPin(pin: String?) {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            sharedPrefs.edit().putString("vault_pin", pin).apply()
+        }
+
+        @JavascriptInterface
         fun isBiometricEnabled(): Boolean {
             val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
-            return sharedPrefs.getBoolean("biometric_enabled", true)
+            return sharedPrefs.getBoolean("biometric_enabled", false)
         }
 
         @JavascriptInterface
