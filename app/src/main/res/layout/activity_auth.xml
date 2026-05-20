@@ -8,9 +8,9 @@
 
     <ImageView
         android:id="@+id/auth_icon"
-        android:layout_width="80dp"
-        android:layout_height="80dp"
-        android:layout_marginTop="100dp"
+        android:layout_width="76dp"
+        android:layout_height="76dp"
+        android:layout_marginTop="64dp"
         android:src="@android:drawable/ic_lock_idle_lock"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -20,9 +20,9 @@
         android:id="@+id/auth_title"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="24dp"
+        android:layout_marginTop="20dp"
         android:text="Authentication Required"
-        android:textSize="24sp"
+        android:textSize="22sp"
         android:textStyle="bold"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -30,21 +30,24 @@
 
     <TextView
         android:id="@+id/auth_status"
-        android:layout_width="wrap_content"
+        android:layout_width="0dp"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
+        android:layout_marginTop="8dp"
+        android:gravity="center"
         android:text="Please use fingerprint to continue"
-        android:textSize="16sp"
+        android:textSize="14sp"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/auth_title" />
 
     <Button
         android:id="@+id/btn_retry_fingerprint"
+        style="@style/Widget.Material3.Button.TonalButton"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
+        android:layout_marginTop="24dp"
         android:text="Try Fingerprint"
+        android:visibility="gone"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/auth_status" />
@@ -52,45 +55,42 @@
     <LinearLayout
         android:id="@+id/pin_container"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:layout_marginTop="32dp"
+        android:layout_height="0dp"
+        android:layout_marginTop="24dp"
+        android:gravity="center_horizontal"
         android:orientation="vertical"
         android:visibility="gone"
+        app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintTop_toBottomOf="@id/auth_status">
 
         <TextView
             android:id="@+id/pin_label"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:text="Too many failures. Enter PIN"
-            android:textSize="16sp" />
+            android:text="Enter PIN"
+            android:textSize="14sp"
+            android:textStyle="bold" />
 
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/pin_input_layout"
-            style="@style/Widget.MaterialComponents.TextInputLayout.OutlinedBox"
-            android:layout_width="200dp"
-            android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginTop="16dp"
-            android:hint="PIN"
-            app:passwordToggleEnabled="true">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/pin_input"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="numberPassword"
-                android:maxLength="4" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <Button
-            android:id="@+id/btn_submit_pin"
+        <LinearLayout
+            android:id="@+id/pin_dots_container"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center_horizontal"
             android:layout_marginTop="16dp"
-            android:text="Unlock" />
+            android:orientation="horizontal">
+            <View android:id="@+id/dot1" android:layout_width="14dp" android:layout_height="14dp" android:layout_margin="8dp" android:background="@drawable/pin_dot_empty" />
+            <View android:id="@+id/dot2" android:layout_width="14dp" android:layout_height="14dp" android:layout_margin="8dp" android:background="@drawable/pin_dot_empty" />
+            <View android:id="@+id/dot3" android:layout_width="14dp" android:layout_height="14dp" android:layout_margin="8dp" android:background="@drawable/pin_dot_empty" />
+            <View android:id="@+id/dot4" android:layout_width="14dp" android:layout_height="14dp" android:layout_margin="8dp" android:background="@drawable/pin_dot_empty" />
+        </LinearLayout>
+
+        <GridLayout
+            android:id="@+id/keypad_grid"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="24dp"
+            android:columnCount="3"
+            android:rowCount="4">
+        </GridLayout>
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

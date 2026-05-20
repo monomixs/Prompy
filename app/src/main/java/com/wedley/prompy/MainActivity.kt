@@ -442,9 +442,21 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun setAppPin(pin: String?) {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            sharedPrefs.edit().putString("app_pin", pin).apply()
+        }
+
+        @JavascriptInterface
+        fun setVaultPin(pin: String?) {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            sharedPrefs.edit().putString("vault_pin", pin).apply()
+        }
+
+        @JavascriptInterface
         fun isBiometricEnabled(): Boolean {
             val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
-            return sharedPrefs.getBoolean("biometric_enabled", true)
+            return sharedPrefs.getBoolean("biometric_enabled", false)
         }
 
         @JavascriptInterface
