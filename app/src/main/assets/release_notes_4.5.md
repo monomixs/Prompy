@@ -4,6 +4,7 @@
 - **Advanced Settings Screen**: Consolidated all system security and data management options into a dedicated screen for a cleaner, less overwhelming Settings experience.
 - **Full Biometric Integration**: The Secure Vault now supports native Android Fingerprint/Face Unlock. If biometric authentication is cancelled or fails, the app seamlessly falls back to your 4-digit PIN.
 - **Native Web-to-OS Bridge**: Implemented a robust communication layer between the web UI and Android OS for handling system-level tasks like browser redirects and security protocols.
+- **And More!**
 
 ## ✨ UI Polish & Experience
 - **Fluid Animation System**: 
@@ -22,4 +23,3 @@
 - **Safe ZIP Import/Export**: Enhanced the prompts backup system to correctly distinguish between normal and secure vault prompts during restoration.
 
 ---
-*Made with ❤️ for AI Creators*
