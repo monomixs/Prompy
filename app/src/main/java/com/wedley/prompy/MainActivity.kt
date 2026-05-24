@@ -52,13 +52,14 @@ import java.util.zip.ZipInputStream
 import java.util.zip.ZipOutputStream
 import android.graphics.BitmapFactory
 import android.util.Base64 as AndroidBase64
+import androidx.biometric.BiometricPrompt
+import java.util.concurrent.Executor
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private var filePathCallback: ValueCallback<Array<Uri>>? = null
 
-    // This handles the permission request response
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -158,7 +159,6 @@ class MainActivity : AppCompatActivity() {
         )
     }
 
-    // This handles the file picker when the HTML asks for an upload
     private val filePickerLauncher = registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
         if (result.resultCode == RESULT_OK) {
             val data = result.data
@@ -314,13 +314,16 @@ class MainActivity : AppCompatActivity() {
         val theme = sharedPrefs.getString("theme", "light")
         applyThemeBars(theme)
 
-        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        val allowScreenshots = sharedPrefs.getBoolean("allow_screenshots", false)
+        if (!allowScreenshots) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        }
+
         super.onCreate(savedInstanceState)
 
         setContentView(R.layout.activity_main)
         
         val root = findViewById<LinearLayout>(R.id.main_root)
-        // Background is managed by the WebView's theme logic
         ViewCompat.setOnApplyWindowInsetsListener(root) { v, insets ->
             val systemBars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             v.setPadding(systemBars.left, systemBars.top, systemBars.right, systemBars.bottom)
@@ -363,7 +366,6 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupWebView() {
-        // 2. Enable JS and File Access
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -371,12 +373,13 @@ class MainActivity : AppCompatActivity() {
             allowContentAccess = true
         }
 
+        webView.isVerticalScrollBarEnabled = false
+        webView.isHorizontalScrollBarEnabled = false
+
         webView.addJavascriptInterface(WebAppInterface(this), "Android")
 
-        // Keeps clicked links inside the app instead of opening Chrome
         webView.webViewClient = WebViewClient()
 
-        // 3. Handle File Uploads (when HTML has <input type="file">)
         webView.webChromeClient = object : WebChromeClient() {
             override fun onShowFileChooser(
                 webView: WebView?,
@@ -390,25 +393,41 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
-        // 4. Custom Long Press Pop-up for Images
         webView.setOnLongClickListener {
             val hitTestResult = webView.hitTestResult
-            // Check if what we clicked is an image
             if (hitTestResult.type == WebView.HitTestResult.IMAGE_TYPE ||
                 hitTestResult.type == WebView.HitTestResult.SRC_IMAGE_ANCHOR_TYPE) {
 
                 val imageUrl = hitTestResult.extra ?: return@setOnLongClickListener false
-                showCustomImageDialog(imageUrl)
-                return@setOnLongClickListener true // Tells Android we handled the long press
+                
+                val script = """
+                    (function() {
+                        var imgs = document.getElementsByTagName('img');
+                        for (var i = 0; i < imgs.length; i++) {
+                            if (imgs[i].src === '${imageUrl.replace("'", "\\'")}') {
+                                var card = imgs[i].closest('.prompt-card');
+                                if (card) return card.querySelector('.card-title').innerText;
+                                var view = imgs[i].closest('#screen-view');
+                                if (view) return view.querySelector('.view-title').innerText;
+                            }
+                        }
+                        return null;
+                    })()
+                """.trimIndent()
+
+                webView.evaluateJavascript(script) { result ->
+                    val title = result?.trim('"')?.replace("\\\"", "\"")?.takeIf { it != "null" && it.isNotBlank() }
+                    showCustomImageDialog(imageUrl, title)
+                }
+                return@setOnLongClickListener true
             }
             false
         }
 
-        // Load your local site
         webView.loadUrl("file:///android_asset/index.html")
     }
 
-    private fun showCustomImageDialog(imageUrl: String) {
+    private fun showCustomImageDialog(imageUrl: String, promptTitle: String? = null) {
         val imageView = com.google.android.material.imageview.ShapeableImageView(this).apply {
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
@@ -416,8 +435,7 @@ class MainActivity : AppCompatActivity() {
             )
             scaleType = ImageView.ScaleType.FIT_CENTER
             adjustViewBounds = true
-            
-            // Add border radius
+
             val radius = resources.displayMetrics.density * 16
             shapeAppearanceModel = shapeAppearanceModel.toBuilder()
                 .setAllCornerSizes(radius)
@@ -441,8 +459,8 @@ class MainActivity : AppCompatActivity() {
             title = "Image Options",
             customView = imageView,
             confirmText = "Download",
-            onConfirm = { downloadImage(imageUrl) },
-            onCancel = { /* Just closes */ }
+            onConfirm = { downloadImage(imageUrl, promptTitle) },
+            onCancel = { }
         )
     }
 
@@ -453,16 +471,18 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, "URL Copied!", Toast.LENGTH_SHORT).show()
     }
 
-    private fun downloadImage(url: String) {
+    private fun downloadImage(url: String, suggestedName: String? = null) {
         if (url.startsWith("data:image")) {
-            saveBase64Image(url)
+            saveBase64Image(url, suggestedName)
             return
         }
 
         try {
             val request = DownloadManager.Request(Uri.parse(url))
             request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-            val fileName = "image_${System.currentTimeMillis()}.jpg"
+            
+            val cleanName = suggestedName?.replace("[^a-zA-Z0-9.-]".toRegex(), "_") ?: "image_${System.currentTimeMillis()}"
+            val fileName = "$cleanName.jpg"
             request.setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "Prompy/$fileName")
 
             val downloadManager = getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
@@ -473,8 +493,15 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
-    private fun saveBase64Image(dataUri: String) {
+    private fun saveBase64Image(dataUri: String, suggestedName: String? = null) {
         try {
+            val extension = when {
+                dataUri.startsWith("data:image/png") -> "png"
+                dataUri.startsWith("data:image/webp") -> "webp"
+                dataUri.startsWith("data:image/gif") -> "gif"
+                else -> "jpg"
+            }
+
             val base64Data = dataUri.substringAfter(",")
             val imageBytes = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
                 Base64.getDecoder().decode(base64Data)
@@ -482,7 +509,9 @@ class MainActivity : AppCompatActivity() {
                 android.util.Base64.decode(base64Data, android.util.Base64.DEFAULT)
             }
             
-            val fileName = "image_${System.currentTimeMillis()}.jpg"
+            val cleanName = suggestedName?.replace("[^a-zA-Z0-9.-]".toRegex(), "_") ?: "image_${System.currentTimeMillis()}"
+            val fileName = "$cleanName.$extension"
+            
             val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
             val prompyDir = File(downloadsDir, "Prompy")
             if (!prompyDir.exists()) prompyDir.mkdirs()
@@ -490,10 +519,9 @@ class MainActivity : AppCompatActivity() {
 
             FileOutputStream(file).use { it.write(imageBytes) }
 
-            // Scan file to make it appear in gallery
             MediaScannerConnection.scanFile(this, arrayOf(file.absolutePath), null) { _, _ -> }
             
-            Toast.makeText(this, "Image saved to Downloads/Prompy", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Image saved", Toast.LENGTH_SHORT).show()
         } catch (e: Exception) {
             Toast.makeText(this, "Failed to save image", Toast.LENGTH_SHORT).show()
         }
@@ -525,6 +553,30 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
+        fun isBiometricEnabled(): Boolean {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            return sharedPrefs.getBoolean("biometric_enabled", false)
+        }
+
+        @JavascriptInterface
+        fun setVaultBiometricEnabled(enabled: Boolean) {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            sharedPrefs.edit().putBoolean("vault_biometric_enabled", enabled).apply()
+        }
+
+        @JavascriptInterface
+        fun isVaultBiometricEnabled(): Boolean {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            return sharedPrefs.getBoolean("vault_biometric_enabled", false)
+        }
+
+        @JavascriptInterface
+        fun canAuthenticate(): Boolean {
+            val biometricManager = androidx.biometric.BiometricManager.from(mContext)
+            return biometricManager.canAuthenticate(androidx.biometric.BiometricManager.Authenticators.BIOMETRIC_STRONG) == androidx.biometric.BiometricManager.BIOMETRIC_SUCCESS
+        }
+
+        @JavascriptInterface
         fun setAppPin(pin: String?) {
             val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
             sharedPrefs.edit().putString("app_pin", pin).apply()
@@ -537,9 +589,27 @@ class MainActivity : AppCompatActivity() {
         }
 
         @JavascriptInterface
-        fun isBiometricEnabled(): Boolean {
+        fun setAppLockEnabled(enabled: Boolean) {
             val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
-            return sharedPrefs.getBoolean("biometric_enabled", false)
+            sharedPrefs.edit().putBoolean("app_lock_enabled", enabled).apply()
+        }
+
+        @JavascriptInterface
+        fun isAppLockEnabled(): Boolean {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            return sharedPrefs.getBoolean("app_lock_enabled", true)
+        }
+
+        @JavascriptInterface
+        fun setAllowScreenshots(enabled: Boolean) {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            sharedPrefs.edit().putBoolean("allow_screenshots", enabled).apply()
+        }
+
+        @JavascriptInterface
+        fun isAllowScreenshotsEnabled(): Boolean {
+            val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
+            return sharedPrefs.getBoolean("allow_screenshots", false)
         }
 
         @JavascriptInterface
@@ -621,16 +691,14 @@ class MainActivity : AppCompatActivity() {
                         val p = prompts.getJSONObject(i)
                         val title = p.optString("title", "Untitled").replace("[^a-zA-Z0-9.-]".toRegex(), "_")
                         val folderName = "${title}_${i}/"
-                        
-                        // 1. Data text file
+
                         val info = JSONObject(p.toString())
-                        info.remove("image") // Don't put b64 in the text file
-                        
+                        info.remove("image")
+
                         val dataBytes = info.toString(2).toByteArray()
                         zipParameters.fileNameInZip = folderName + "prompt_info.txt"
                         zfo.addStream(ByteArrayInputStream(dataBytes), zipParameters)
-                        
-                        // 2. Image file if exists
+
                         val imgData = p.optString("image", "")
                         if (imgData.isNotEmpty() && imgData.contains(",")) {
                             val b64 = imgData.substringAfter(",")
@@ -661,6 +729,50 @@ class MainActivity : AppCompatActivity() {
                     addCategory(Intent.CATEGORY_OPENABLE)
                 }
                 this@MainActivity.zipPickerLauncher.launch(intent)
+            }
+        }
+
+        @JavascriptInterface
+        fun authenticateBiometric(callbackName: String) {
+            runOnUiThread {
+                val executor = ContextCompat.getMainExecutor(mContext)
+                val biometricPrompt = BiometricPrompt(this@MainActivity, executor,
+                    object : BiometricPrompt.AuthenticationCallback() {
+                        override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                            super.onAuthenticationError(errorCode, errString)
+                            webView.evaluateJavascript("window['$callbackName'](false, '$errString')", null)
+                        }
+
+                        override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                            super.onAuthenticationSucceeded(result)
+                            webView.evaluateJavascript("window['$callbackName'](true)", null)
+                        }
+
+                        override fun onAuthenticationFailed() {
+                            super.onAuthenticationFailed()
+                            // This is called when a fingerprint is recognized but doesn't match
+                        }
+                    })
+
+                val promptInfo = BiometricPrompt.PromptInfo.Builder()
+                    .setTitle("Biometric Authentication")
+                    .setSubtitle("Confirm your identity to continue")
+                    .setNegativeButtonText("Use PIN")
+                    .build()
+
+                biometricPrompt.authenticate(promptInfo)
+            }
+        }
+
+        @JavascriptInterface
+        fun openExternalUrl(url: String) {
+            try {
+                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url))
+                mContext.startActivity(intent)
+            } catch (e: Exception) {
+                runOnUiThread {
+                    Toast.makeText(mContext, "Could not open browser", Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }

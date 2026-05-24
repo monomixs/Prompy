@@ -1,3 +1,9 @@
 <resources>
     <string name="app_name">Prompy</string>
+    <string name="auth_title_default">App Lock</string>
+    <string name="auth_status_default">Please use fingerprint to continue</string>
+    <string name="auth_pin_sub">Enter your 4-digit PIN to continue</string>
+    <string name="auth_security_fallback">Security Fallback</string>
+    <string name="auth_fingerprint_not_recognized">Fingerprint not recognized</string>
+    <string name="auth_fingerprint_retry">Try Fingerprint</string>
 </resources>

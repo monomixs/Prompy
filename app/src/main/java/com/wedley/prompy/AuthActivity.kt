@@ -29,6 +29,7 @@ class AuthActivity : AppCompatActivity() {
     private lateinit var promptInfo: BiometricPrompt.PromptInfo
 
     private var failureCount = 0
+    private lateinit var authTitle: TextView
     private lateinit var authStatus: TextView
     private lateinit var btnRetryFingerprint: Button
     private lateinit var pinContainer: LinearLayout
@@ -40,22 +41,34 @@ class AuthActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         val sharedPrefs = getSharedPreferences("prompy_settings", MODE_PRIVATE)
+        val appLockEnabled = sharedPrefs.getBoolean("app_lock_enabled", true)
+        if (!appLockEnabled) {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
+        }
+
         val theme = sharedPrefs.getString("theme", "light")
         val isBiometricEnabled = sharedPrefs.getBoolean("biometric_enabled", false) // Default OFF
         storedPin = sharedPrefs.getString("app_pin", null)
 
         setupSystemBars(theme)
 
-        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        val allowScreenshots = sharedPrefs.getBoolean("allow_screenshots", false)
+        if (!allowScreenshots) {
+            window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        }
+
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_auth)
 
-        applyThemeToUI(theme)
-
+        authTitle = findViewById(R.id.auth_title)
         authStatus = findViewById(R.id.auth_status)
         btnRetryFingerprint = findViewById(R.id.btn_retry_fingerprint)
         pinContainer = findViewById(R.id.pin_container)
         keypadGrid = findViewById(R.id.keypad_grid)
+
+        applyThemeToUI(theme)
 
         executor = ContextCompat.getMainExecutor(this)
         setupBiometricPrompt()
@@ -77,15 +90,16 @@ class AuthActivity : AppCompatActivity() {
     private fun buildKeypad() {
         val keys = arrayOf("1", "2", "3", "4", "5", "6", "7", "8", "9", "", "0", "DEL")
         val density = resources.displayMetrics.density
-        val btnSize = (64 * density).toInt()
-        val margin = (8 * density).toInt()
+        val btnWidth = (96 * density).toInt()
+        val btnHeight = (68 * density).toInt()
+        val margin = (5 * density).toInt()
 
         for (key in keys) {
             if (key.isEmpty()) {
                 val space = View(this)
                 val params = GridLayout.LayoutParams()
-                params.width = btnSize
-                params.height = btnSize
+                params.width = btnWidth
+                params.height = btnHeight
                 params.setMargins(margin, margin, margin, margin)
                 keypadGrid.addView(space, params)
                 continue
@@ -93,24 +107,30 @@ class AuthActivity : AppCompatActivity() {
 
             val btn = com.google.android.material.button.MaterialButton(this, null, com.google.android.material.R.attr.materialButtonStyle).apply {
                 text = key
-                textSize = 20f
+                textSize = 26f
+                setTypeface(null, android.graphics.Typeface.BOLD)
                 gravity = Gravity.CENTER
                 setPadding(0, 0, 0, 0)
                 insetTop = 0
                 insetBottom = 0
-                cornerRadius = (16 * density).toInt()
+                cornerRadius = (24 * density).toInt()
+                setBackgroundColor(ContextCompat.getColor(context, R.color.sc))
+                setTextColor(ContextCompat.getColor(context, R.color.on_surface))
+                rippleColor = ContextCompat.getColorStateList(context, R.color.outline_var)
                 
                 if (key == "DEL") {
                     setIconResource(android.R.drawable.ic_input_delete)
+                    iconSize = (24 * density).toInt()
                     iconGravity = com.google.android.material.button.MaterialButton.ICON_GRAVITY_TEXT_START
                     iconPadding = 0
+                    iconTint = ContextCompat.getColorStateList(context, R.color.on_surface_var)
                     text = ""
                 }
             }
 
             val params = GridLayout.LayoutParams()
-            params.width = btnSize
-            params.height = btnSize
+            params.width = btnWidth
+            params.height = btnHeight
             params.setMargins(margin, margin, margin, margin)
             
             btn.setOnClickListener { onKeyClick(key) }
@@ -155,11 +175,14 @@ class AuthActivity : AppCompatActivity() {
     }
 
     private fun resetToInitialState() {
-        authStatus.text = "Please use fingerprint to continue"
+        authTitle.text = getString(R.string.auth_title_default)
+        authStatus.text = getString(R.string.auth_status_default)
         authStatus.setTextColor(currentOnSurfaceColor)
+        pinContainer.visibility = View.GONE
+        keypadGrid.visibility = View.GONE
         findViewById<ImageView>(R.id.auth_icon).apply {
             setImageResource(android.R.drawable.ic_lock_idle_lock)
-            imageTintList = android.content.res.ColorStateList.valueOf(currentOnSurfaceColor)
+            imageTintList = ContextCompat.getColorStateList(this@AuthActivity, R.color.on_primary_container)
         }
     }
 
@@ -168,7 +191,7 @@ class AuthActivity : AppCompatActivity() {
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
-                    authStatus.text = "Authentication error: $errString"
+                    authStatus.text = errString
                     handleFailure()
                 }
 
@@ -179,7 +202,7 @@ class AuthActivity : AppCompatActivity() {
 
                 override fun onAuthenticationFailed() {
                     super.onAuthenticationFailed()
-                    authStatus.text = "Fingerprint not recognized"
+                    authStatus.text = getString(R.string.auth_fingerprint_not_recognized)
                     handleFailure()
                 }
             })
@@ -213,10 +236,15 @@ class AuthActivity : AppCompatActivity() {
     }
 
     private fun showPinEntry() {
-        authStatus.text = "Security Fallback"
+        authTitle.text = getString(R.string.auth_title_default)
+        authStatus.text = getString(R.string.auth_pin_sub)
         btnRetryFingerprint.visibility = View.GONE
         pinContainer.visibility = View.VISIBLE
-        findViewById<ImageView>(R.id.auth_icon).setImageResource(android.R.drawable.ic_lock_lock)
+        keypadGrid.visibility = View.VISIBLE
+        findViewById<ImageView>(R.id.auth_icon).apply {
+            setImageResource(android.R.drawable.ic_lock_lock)
+            imageTintList = ContextCompat.getColorStateList(this@AuthActivity, R.color.on_primary_container)
+        }
     }
 
     private fun onAuthSuccess() {
@@ -261,9 +289,9 @@ class AuthActivity : AppCompatActivity() {
         
         currentOnSurfaceColor = onSurfaceColor
         findViewById<View>(R.id.auth_root)?.setBackgroundColor(surfaceColor)
-        findViewById<TextView>(R.id.auth_title)?.setTextColor(onSurfaceColor)
-        findViewById<TextView>(R.id.auth_status)?.setTextColor(onSurfaceColor)
-        findViewById<ImageView>(R.id.auth_icon)?.imageTintList = android.content.res.ColorStateList.valueOf(onSurfaceColor)
+        authTitle.setTextColor(onSurfaceColor)
+        authStatus.setTextColor(onSurfaceColor)
+        findViewById<ImageView>(R.id.auth_icon)?.imageTintList = ContextCompat.getColorStateList(this, R.color.on_primary_container)
         findViewById<TextView>(R.id.pin_label)?.setTextColor(onSurfaceColor)
     }
 }

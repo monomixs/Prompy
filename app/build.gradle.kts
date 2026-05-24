@@ -13,9 +13,9 @@ android {
     defaultConfig {
         applicationId = "com.wedley.prompy"
         minSdk = 24
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 4
-        versionName = "4.0 Beta"
+        versionName = "4.5"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
