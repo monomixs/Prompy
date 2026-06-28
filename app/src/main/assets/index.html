@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
     <title>Prompy</title>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;500;600;700;800;900;1000&display=swap" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
     <style>
         :root {
           --clr-primary:               #6750A4;
@@ -23,6 +24,7 @@
           --clr-on-error:              #FFFFFF;
           --clr-error-container:       #F9DEDC;
           --clr-on-error-container:    #410E0B;
+          --clr-error-dim:             rgba(179,38,30,0.10);
           --clr-surface:               #FFFBFE;
           --clr-on-surface:            #1C1B1F;
           --clr-surface-var:           #E7E0EC;
@@ -76,6 +78,7 @@
           --clr-on-error:              #601410;
           --clr-error-container:       #8C1D18;
           --clr-on-error-container:    #F9DEDC;
+          --clr-error-dim:             rgba(242,184,181,0.14);
           --clr-surface:               #1C1B1F;
           --clr-on-surface:            #E6E1E5;
           --clr-surface-var:           #49454F;
@@ -107,6 +110,7 @@
           --clr-on-error:              #601410;
           --clr-error-container:       #6E1410;
           --clr-on-error-container:    #F9DEDC;
+          --clr-error-dim:             rgba(242,184,181,0.12);
           --clr-surface:               #000000;
           --clr-on-surface:            #E6E1E5;
           --clr-surface-var:           #1E1C22;
@@ -148,6 +152,16 @@
           transition: transform 300ms var(--ease-std),
                       opacity 200ms ease;
         }
+        #screen-vault { z-index: 40; }
+        #screen-settings { z-index: 50; }
+        #screen-vault-settings { z-index: 55; }
+        #screen-advanced { z-index: 60; }
+        #screen-about { z-index: 65; }
+        #screen-search { z-index: 70; }
+        #screen-view { z-index: 75; }
+        #screen-create { z-index: 80; }
+        #screen-pin-setup, #screen-pin-entry { z-index: 100; }
+
         .screen.slide-up       { transform: translateY(105%); }
         .screen.slide-up.open  { transform: translateY(0); transition-duration: 450ms; }
         .screen.slide-right      { transform: translateX(105%); }
@@ -168,17 +182,8 @@
         .screen.open .pin-body { transition-delay: 200ms; }
         .screen.open .action-bar { transition-delay: 250ms; }
 
-        #screen-vault, #screen-pin-setup, #screen-pin-entry { z-index: 40; }
-        #screen-settings { z-index: 30; }
-        /* FIX: screen-view and screen-create must be above screen-search (60) */
-        #screen-view   { z-index: 65; }
-        #screen-create { z-index: 70; }
-        #screen-search { z-index: 60; }
-        #screen-about  { z-index: 80; }
-        #screen-advanced  { z-index: 75; }
-
         #scrim {
-          position: fixed; inset: 0; z-index: 25;
+          position: fixed; inset: 0; z-index: 45;
           background: rgba(0,0,0,0.5);
           opacity: 0; pointer-events: none;
           transition: opacity var(--dur-mid) ease;
@@ -301,6 +306,30 @@
           to   { opacity: 1; transform: scale(1) translateY(0); }
         }
 
+        /* ── Selection mode animations ── */
+        @keyframes selTitleIn {
+          from { opacity: 0; transform: translateX(-14px); }
+          to   { opacity: 1; transform: translateX(0); }
+        }
+        @keyframes selBtnIn {
+          from { opacity: 0; transform: scale(0.72) translateX(10px); }
+          to   { opacity: 1; transform: scale(1) translateX(0); }
+        }
+        @keyframes actionsExit {
+          from { opacity: 1; transform: translateY(0) scale(1); }
+          to   { opacity: 0; transform: translateY(7px) scale(0.82); pointer-events: none; }
+        }
+        .sel-title-anim {
+          animation: selTitleIn 220ms var(--ease-decel) both;
+        }
+        .sel-btn-anim {
+          animation: selBtnIn 260ms var(--ease-decel) both;
+        }
+        .card-actions.actions-exit {
+          animation: actionsExit 170ms ease forwards;
+          pointer-events: none;
+        }
+
         .prompt-card {
           background: var(--clr-sclo);
           border-radius: var(--rad-xl);
@@ -314,8 +343,32 @@
           position: relative;
           overflow: hidden;
           animation: cardEntry 400ms var(--ease-decel) backwards;
+          user-select: none;
+          -webkit-user-select: none;
+          -webkit-touch-callout: none;
         }
         .prompt-card:active { transform: scale(0.96); box-shadow: 0 4px 12px rgba(0,0,0,.1); border-color: var(--clr-primary); }
+        .prompt-card.selected {
+          border-color: var(--clr-primary);
+          box-shadow: 0 0 0 2.5px var(--clr-primary), 0 4px 16px rgba(103,80,164,.18);
+          background: var(--clr-primary-container);
+        }
+        .card-select-check {
+          position: absolute; top: 10px; right: 10px;
+          width: 24px; height: 24px; border-radius: 50%;
+          background: var(--clr-primary);
+          display: flex; align-items: center; justify-content: center;
+          box-shadow: 0 2px 8px rgba(0,0,0,.2);
+          z-index: 2;
+        }
+        .card-select-check svg { width: 14px; height: 14px; fill: var(--clr-on-primary); }
+        .card-select-empty {
+          position: absolute; top: 10px; right: 10px;
+          width: 24px; height: 24px; border-radius: 50%;
+          border: 2.5px solid var(--clr-outline);
+          background: var(--clr-surface);
+          z-index: 2;
+        }
 
         .prompt-card.has-image {
           grid-template-columns: 1fr auto;
@@ -328,22 +381,49 @@
         /* FIX: image spans ALL rows and centers vertically */
         .card-thumb {
           grid-column: 2;
-          grid-row: 1 / -1;      /* span every row */
-          width: 88px;
+          grid-row: 1 / -1;
+          max-width: 110px;
           margin-left: 10px;
-          align-self: stretch;   /* fill full card height */
+          align-self: start;
           display: flex;
-          align-items: center;   /* center image vertically */
+          align-items: start;
           justify-content: center;
+          padding-top: 4px;
         }
         .card-thumb img {
-          width: 100%; height: auto;
+          max-width: 100%; height: auto;
+          max-height: 160px;
           display: block;
           border-radius: var(--rad-md);
           object-fit: contain;
           transition: transform 300ms var(--ease-std);
         }
         .prompt-card:active .card-thumb img { transform: scale(1.05); }
+
+        /* ── Stacked photo effect (2+ images) ── */
+        .card-thumb.stacked {
+          position: relative;
+          width: 88px; height: 88px;
+        }
+        .card-thumb.stacked img {
+          position: absolute;
+          width: 86%; height: 86%;
+          top: 50%; left: 50%;
+          object-fit: cover;
+          border-radius: var(--rad-md);
+        }
+        .card-thumb.stacked img.thumb-back {
+          transform: translate(-44%, -50%) rotate(11deg);
+          z-index: 1;
+          filter: brightness(0.93);
+          box-shadow: 0 2px 6px rgba(0,0,0,.12);
+        }
+        .card-thumb.stacked img.thumb-front {
+          transform: translate(-56%, -50%) rotate(0deg);
+          z-index: 2;
+          box-shadow: -3px 3px 10px rgba(0,0,0,.18);
+        }
+        .prompt-card:active .card-thumb.stacked img.thumb-front { transform: translate(-56%, -50%) scale(1.04); }
 
         .card-title {
           font-size: 15px; font-weight: 900;
@@ -412,6 +492,19 @@
         .fab.hidden-fab { opacity: 0; pointer-events: none; transform: scale(0.6) translateY(20px); }
         .fab svg { width: 34px; height: 34px; fill: var(--clr-on-primary-container); }
 
+        /* ── VAULT FAB ── */
+        .vault-fab {
+          position: fixed; bottom: 24px; right: 18px;
+          width: 76px; height: 76px; border-radius: 22px; border: none;
+          background: var(--clr-primary); color: var(--clr-on-primary);
+          cursor: pointer; display: none; align-items: center; justify-content: center;
+          box-shadow: 0 6px 24px rgba(103,80,164,.45); z-index: 42;
+          transition: transform 300ms var(--ease-decel), box-shadow 200ms ease, opacity 250ms ease;
+        }
+        .vault-fab:active { transform: scale(0.88); }
+        .vault-fab.visible { display: flex; }
+        .vault-fab svg { width: 34px; height: 34px; fill: var(--clr-on-primary); }
+
         /* ════════════ CREATE / EDIT ════════════ */
         .form-scroll { padding: 18px 16px 0; display: flex; flex-direction: column; gap: 18px; }
         .field-label {
@@ -455,12 +548,27 @@
         .drop-zone .dz-label { font-size: 13.5px; font-weight: 700; color: var(--clr-on-surface-var); }
         .drop-zone .dz-hint  { font-size: 11.5px; font-weight: 500; color: var(--clr-outline); }
 
-        .img-preview-box {
-          display: none; border-radius: var(--rad-xl); overflow: hidden;
-          background: var(--clr-sch); flex-direction: column;
+        .img-thumb-item {
+          position: relative; width: 76px; height: 76px;
+          border-radius: var(--rad-md); overflow: hidden;
+          border: 1.5px solid var(--clr-outline-var);
+          background: var(--clr-sch);
+          animation: cardEntry 280ms var(--ease-decel) backwards;
         }
-        .img-preview-box img { width: 100%; height: auto; display: block; object-fit: contain; }
-        .img-preview-box .btn { margin: 10px; align-self: flex-start; font-size: 13px; padding: 9px 18px; }
+        .img-thumb-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+        .img-thumb-item .thumb-del {
+          position: absolute; top: 3px; right: 3px;
+          width: 21px; height: 21px; border-radius: 50%;
+          background: rgba(0,0,0,.6); border: none; cursor: pointer;
+          display: flex; align-items: center; justify-content: center;
+        }
+        .img-thumb-item .thumb-del svg { width: 12px; height: 12px; fill: #fff; }
+        .img-thumb-item .thumb-badge {
+          position: absolute; bottom: 3px; left: 3px;
+          font-size: 9px; font-weight: 800; color: #fff;
+          background: rgba(0,0,0,.55); padding: 1px 6px; border-radius: 7px;
+          letter-spacing: 0.2px;
+        }
 
         .vault-toggle-row {
           display: flex; align-items: center; gap: 10px; padding: 4px 0; cursor: pointer;
@@ -471,8 +579,22 @@
         /* ════════════ VIEW SCREEN ════════════ */
         .view-body { padding: 20px 16px; display: flex; flex-direction: column; gap: 18px; }
         .view-title { font-size: 28px; font-weight: 900; color: var(--clr-on-surface); line-height: 1.2; letter-spacing: -0.4px; }
-        .view-img-wrap { border-radius: var(--rad-xl); overflow: hidden; background: var(--clr-sc); border: 1.5px solid var(--clr-outline-var); }
-        .view-img-wrap img { width: 100%; height: auto; display: block; object-fit: contain; }
+        .view-img-wrap { border-radius: var(--rad-xl); overflow: hidden; background: var(--clr-sc); border: 1.5px solid var(--clr-outline-var); display: flex; justify-content: center; }
+        .view-img-wrap img { max-width: 100%; height: auto; max-height: 75dvh; display: block; object-fit: contain; }
+
+        .view-img-gallery {
+          display: flex; gap: 10px; overflow-x: auto;
+          scroll-snap-type: x mandatory; -webkit-overflow-scrolling: touch;
+          padding-bottom: 2px; margin-bottom: -2px;
+        }
+        .view-img-gallery::-webkit-scrollbar { display: none; }
+        .view-img-gallery .view-img-wrap {
+          flex: 0 0 82%; scroll-snap-align: center;
+        }
+        .view-img-counter {
+          text-align: center; font-size: 11.5px; font-weight: 700;
+          color: var(--clr-outline); margin-top: -4px;
+        }
         .view-prompt-text {
           background: var(--clr-sc); border-radius: var(--rad-xl); padding: 16px;
           font-size: 14.5px; font-weight: 500; line-height: 1.72; color: var(--clr-on-surface);
@@ -659,15 +781,7 @@
         }
 
         /* ════════════ VAULT ════════════ */
-        .vault-topbar {
-          background: var(--clr-primary); padding: 14px 16px;
-          display: flex; align-items: center; gap: 10px;
-          position: sticky; top: 0; z-index: 5;
-        }
-        .vault-topbar .back-btn svg { fill: var(--clr-on-primary); }
-        .vault-topbar .icon-btn { background: rgba(255,255,255,0.18); color: var(--clr-on-primary); }
-        .vault-topbar .icon-btn svg { fill: var(--clr-on-primary); }
-        .vault-topbar-title { flex: 1; font-size: 20px; font-weight: 900; color: var(--clr-on-primary); letter-spacing: -0.2px; }
+        /* vault header now uses .dash-header styles — identical to normal screen */
         .vault-empty {
           display: flex; flex-direction: column; align-items: center; gap: 10px;
           padding: 60px 24px; text-align: center;
@@ -898,6 +1012,9 @@
         .sheet-btn.active-sort {
           background: var(--clr-primary); border-color: transparent; color: var(--clr-on-primary);
         }
+        .sheet-btn.active-tag {
+          background: var(--clr-primary); border-color: transparent; color: var(--clr-on-primary);
+        }
         /* ── ABOUT SCREEN ── */
         .about-body {
           display: flex; flex-direction: column; align-items: center;
@@ -908,8 +1025,10 @@
           background: var(--clr-primary-container);
           overflow: hidden; border: 4px solid var(--clr-outline-var);
           position: relative;
+          display: flex; align-items: center; justify-content: center;
         }
         .about-avatar-wrap img { width: 100%; height: 100%; object-fit: cover; }
+        .about-avatar-placeholder { width: 68px; height: 68px; fill: var(--clr-on-primary-container); }
         .about-profile-name { font-size: 24px; font-weight: 1000; color: var(--clr-on-surface); display: flex; align-items: center; gap: 8px; }
         .about-github-icon { width: 24px; height: 24px; fill: var(--clr-primary); cursor: pointer; transition: transform 0.2s; }
         .about-github-icon:active { transform: scale(0.9); }
@@ -928,10 +1047,223 @@
           background: var(--clr-secondary-container); color: var(--clr-on-secondary-container);
           padding: 6px 14px; border-radius: var(--rad-full); font-size: 12px; font-weight: 800;
         }
+
+        /* ── Danger button utilities ── */
+        .btn-danger { background: var(--clr-error); color: var(--clr-on-error); }
+        .btn-full   { width: 100%; }
+        .settings-item-danger h3 { color: var(--clr-error) !important; }
+
+        /* ── BACKENDLESS ── */
+        .bl-key-wrap {
+          padding: 14px 16px;
+          background: var(--clr-sc);
+          border-radius: var(--rad-lg);
+          border: 1.5px solid var(--clr-outline-var);
+        }
+        .bl-key-input {
+          width: 100%; box-sizing: border-box;
+          font-size: 13.5px; padding: 10px 13px;
+          border-radius: var(--rad-md);
+          font-family: 'Courier New', monospace;
+          letter-spacing: 0.04em;
+        }
+        .bl-badge {
+          min-width: 28px; height: 28px; border-radius: var(--rad-full);
+          background: var(--clr-primary-container);
+          color: var(--clr-on-primary-container);
+          font-size: 11px; font-weight: 800;
+          display: flex; align-items: center; justify-content: center;
+          padding: 0 8px; flex-shrink: 0;
+        }
+        /* Console */
+        .bl-console {
+          border-radius: var(--rad-md);
+          overflow: hidden;
+          border: 1.5px solid #30363d;
+        }
+        .bl-console-bar {
+          display: flex; justify-content: space-between; align-items: center;
+          padding: 6px 10px;
+          background: #161b22;
+          border-bottom: 1px solid #30363d;
+        }
+        .bl-console-title {
+          font-size: 11px; font-weight: 700; color: #8b949e;
+          text-transform: uppercase; letter-spacing: 0.06em;
+          display: flex; align-items: center;
+        }
+        .bl-console-clear {
+          font-size: 10px; font-weight: 700; font-family: 'Nunito', sans-serif;
+          color: #8b949e; background: transparent; border: 1px solid #30363d;
+          border-radius: 4px; padding: 2px 8px; cursor: pointer;
+          transition: color 0.15s, border-color 0.15s;
+        }
+        .bl-console-clear:hover { color: #c9d1d9; border-color: #6e7681; }
+        .bl-console-output {
+          background: #0d1117;
+          padding: 8px 10px;
+          height: 240px;
+          overflow-y: auto;
+          font-family: 'Courier New', monospace;
+          font-size: 11px;
+          line-height: 1.65;
+          scroll-behavior: smooth;
+          user-select: text;
+          -webkit-user-select: text;
+        }
+        .bl-console-output::-webkit-scrollbar { width: 4px; }
+        .bl-console-output::-webkit-scrollbar-track { background: transparent; }
+        .bl-console-output::-webkit-scrollbar-thumb { background: #30363d; border-radius: 2px; }
+        .bl-con-line       { color: #c9d1d9; white-space: pre-wrap; word-break: break-all; }
+        .bl-con-line.ok    { color: #3fb950; }
+        .bl-con-line.err   { color: #f85149; }
+        .bl-con-line.warn  { color: #d29922; }
+        .bl-con-line.info  { color: #58a6ff; }
+        /* Fixed progress chip */
+        .bl-progress-chip {
+          position: fixed; bottom: 88px; left: 50%; transform: translateX(-50%);
+          background: var(--clr-on-surface); color: var(--clr-surface);
+          padding: 10px 18px; border-radius: var(--rad-full);
+          font-size: 13px; font-weight: 700; font-family: 'Nunito', sans-serif;
+          display: flex; align-items: center; gap: 10px;
+          box-shadow: 0 4px 16px rgba(0,0,0,0.25);
+          z-index: 9999; white-space: nowrap;
+          animation: chip-in 0.22s ease;
+        }
+        @keyframes chip-in {
+          from { opacity: 0; bottom: 72px; }
+          to   { opacity: 1; bottom: 88px; }
+        }
+        .bl-progress-spinner {
+          width: 16px; height: 16px; border-radius: 50%;
+          border: 2.5px solid rgba(255,255,255,0.3);
+          border-top-color: currentColor;
+          animation: spin 0.7s linear infinite;
+          flex-shrink: 0;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        /* ── Upload Choice Overlay ── */
+        .uc-overlay{
+          position:fixed;inset:0;z-index:1100;
+          display:flex;align-items:center;justify-content:center;padding:24px;
+          transition:background .35s ease;
+          animation:ucFadeIn .22s ease;
+        }
+        @keyframes ucFadeIn{from{opacity:0}to{opacity:1}}
+        .uc-box{
+          width:100%;max-width:360px;border-radius:var(--rad-xl);
+          padding:26px 20px 22px;box-shadow:0 12px 48px rgba(0,0,0,.55);
+          transition:background .35s ease;
+          animation:ucBoxIn .25s ease;
+        }
+        @keyframes ucBoxIn{from{opacity:0;transform:scale(.92)}to{opacity:1;transform:scale(1)}}
+        .uc-head{margin-bottom:22px}
+        .uc-head h2{font-size:19px;font-weight:900;color:#fff;margin-bottom:4px}
+        .uc-head p {font-size:13px;color:rgba(255,255,255,.6);font-weight:600}
+        .uc-option{
+          display:flex;align-items:center;gap:13px;
+          padding:13px 14px;border-radius:var(--rad-md);
+          border:2px solid rgba(255,255,255,.12);
+          background:rgba(255,255,255,.07);
+          cursor:pointer;margin-bottom:9px;
+          transition:border-color .2s,background .2s;user-select:none;
+        }
+        .uc-option:last-of-type{margin-bottom:0}
+        .uc-option:active{background:rgba(255,255,255,.14)}
+        .uc-option.sel{border-color:rgba(255,255,255,.75);background:rgba(255,255,255,.16)}
+        .uc-opt-ico{
+          width:38px;height:38px;border-radius:var(--rad-sm);flex-shrink:0;
+          background:rgba(255,255,255,.13);
+          display:flex;align-items:center;justify-content:center;
+        }
+        .uc-opt-ico svg{width:19px;height:19px;fill:rgba(255,255,255,.9)}
+        .uc-opt-lbl{flex:1}
+        .uc-opt-lbl h3{font-size:14px;font-weight:800;color:#fff}
+        .uc-opt-lbl p {font-size:11.5px;color:rgba(255,255,255,.55);margin-top:1px;font-weight:600}
+        .uc-badge{
+          font-size:12.5px;font-weight:900;color:rgba(255,255,255,.9);
+          background:rgba(255,255,255,.15);padding:3px 11px;
+          border-radius:var(--rad-full);flex-shrink:0;
+        }
+        .uc-check{
+          width:22px;height:22px;border-radius:50%;flex-shrink:0;
+          border:2px solid rgba(255,255,255,.28);
+          display:flex;align-items:center;justify-content:center;
+          transition:border-color .18s,background .18s;
+        }
+        .uc-check svg{width:12px;height:12px;fill:#fff;opacity:0;transition:opacity .15s}
+        .uc-option.sel .uc-check{border-color:#fff;background:rgba(255,255,255,.22)}
+        .uc-option.sel .uc-check svg{opacity:1}
+        .uc-actions{display:flex;gap:10px;margin-top:20px}
+        .uc-cancel{
+          flex:1;padding:12px;border-radius:var(--rad-full);
+          border:2px solid rgba(255,255,255,.32);background:transparent;
+          color:rgba(255,255,255,.82);font-family:'Nunito',sans-serif;
+          font-size:14px;font-weight:800;cursor:pointer;
+          transition:background .18s;
+        }
+        .uc-cancel:active{background:rgba(255,255,255,.1)}
+        .uc-upload{
+          flex:1;padding:12px;border-radius:var(--rad-full);
+          border:none;background:rgba(255,255,255,.92);
+          color:#111;font-family:'Nunito',sans-serif;
+          font-size:14px;font-weight:900;cursor:pointer;
+          transition:opacity .18s;
+        }
+        .uc-upload:active{opacity:.82}
+
+        /* ════════════ LOADING SCREEN ════════════ */
+        #loading-screen {
+          position: fixed; inset: 0; z-index: 99999;
+          background: var(--clr-surface);
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+          transition: opacity 400ms ease, visibility 400ms;
+        }
+        #loading-screen.hidden { opacity: 0; visibility: hidden; }
+        .loading-logo {
+          width: 90px; height: 90px; margin-bottom: 24px;
+          animation: logoPulse 1.8s infinite var(--ease-std);
+        }
+        @keyframes logoPulse {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.1); opacity: 0.8; }
+        }
+        .loading-bar-wrap {
+          width: 140px; height: 4px;
+          background: var(--clr-sc);
+          border-radius: 2px; overflow: hidden;
+          position: relative;
+        }
+        .loading-bar-fill {
+          position: absolute; inset: 0;
+          background: var(--clr-primary);
+          width: 40%; border-radius: 2px;
+          animation: barSlide 1.2s infinite ease-in-out;
+        }
+        @keyframes barSlide {
+          0% { left: -40%; width: 40%; }
+          50% { width: 60%; }
+          100% { left: 100%; width: 40%; }
+        }
+        .loading-text {
+          margin-top: 16px; font-size: 13px; font-weight: 800;
+          color: var(--clr-primary); text-transform: uppercase;
+          letter-spacing: 2px;
+        }
     </style>
 </head>
 <body>
 <div id="app">
+
+    <!-- Loading Screen -->
+    <div id="loading-screen">
+        <div class="loading-logo">
+            <svg viewBox="0 0 24 24" fill="var(--clr-primary)"><path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V5h14v14zM17 10h-4V6h-2v4H7v2h4v4h2v-4h4V10z"/></svg>
+        </div>
+        <div class="loading-bar-wrap"><div class="loading-bar-fill"></div></div>
+        <div class="loading-text">Prompy</div>
+    </div>
 
     <div id="toast" role="status" aria-live="polite"></div>
     <div id="scrim" onclick="handleScrimClick()"></div>
@@ -950,20 +1282,35 @@
 
     <!-- ═══ DASHBOARD ═══ -->
     <div id="screen-dashboard">
-        <header class="dash-header">
-            <h1 class="app-wordmark">Promp<span>y</span></h1>
-            <div style="display: flex; gap: 8px;">
-                <button class="icon-btn" onclick="openFilterSheet()" aria-label="Filter">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-                </button>
-                <button class="icon-btn" onclick="openSearch(false)" aria-label="Search">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                </button>
-                <button class="icon-btn" onclick="openSettings()" aria-label="Settings">
-                    <svg viewBox="0 0 24 24" fill="currentColor">
-                        <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.33.07-.67.07-1.08 0-.41-.03-.75-.07-1.08l2.32-1.82c.21-.16.27-.46.13-.7l-2.2-3.81c-.13-.23-.43-.32-.67-.23l-2.73 1.1c-.57-.44-1.18-.8-1.85-1.07L14.17 2.6c-.05-.28-.28-.47-.56-.47h-4.4c-.28 0-.5.19-.55.47L8.18 5.19c-.67.27-1.28.63-1.84 1.07L3.61 5.16c-.24-.09-.54 0-.67.23L.74 9.2c-.14.24-.08.54.13.7L3.2 11.72c-.04.33-.07.67-.07 1.08s.03.75.07 1.08L.87 15.7c-.21.16-.27.46-.13.7l2.2 3.81c.13.23.43.32.67.23l2.73-1.1c.57.44 1.18.8 1.85 1.07l.38 2.59c.05.28.27.47.55.47h4.4c.28 0 .51-.19.56-.47l.38-2.59c.67-.27 1.28-.63 1.85-1.07l2.73 1.1c.24.09.54 0 .67-.23l2.2-3.81c.14-.24.08-.54-.13-.7l-2.32-1.82z"/>
-                    </svg>
-                </button>
+        <header class="dash-header" id="dash-header">
+            <div id="dash-title-area" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+                <h1 class="app-wordmark">Promp<span>y</span></h1>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <div id="dash-sel-actions" style="display:none;gap:8px;align-items:center">
+                    <button class="icon-btn" onclick="exportSelected()" aria-label="Export selected" title="Export selected" style="background:var(--clr-secondary-container);color:var(--clr-on-secondary-container)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                    </button>
+                    <button class="icon-btn" onclick="uploadSelected()" aria-label="Upload selected" title="Upload to cloud" style="background:var(--clr-primary-container);color:var(--clr-on-primary-container)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                    </button>
+                    <button class="icon-btn" onclick="deleteSelected()" aria-label="Delete selected" title="Delete selected" style="background:var(--clr-error-container);color:var(--clr-on-error-container)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </button>
+                </div>
+                <div id="dash-normal-actions" style="display:flex;gap:8px">
+                    <button class="icon-btn" onclick="openFilterSheet()" aria-label="Filter">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+                    </button>
+                    <button class="icon-btn" onclick="openSearch(false)" aria-label="Search">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                    </button>
+                    <button class="icon-btn" id="dash-settings-btn" onclick="openSettings()" aria-label="Settings">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.33.07-.67.07-1.08 0-.41-.03-.75-.07-1.08l2.32-1.82c.21-.16.27-.46.13-.7l-2.2-3.81c-.13-.23-.43-.32-.67-.23l-2.73 1.1c-.57-.44-1.18-.8-1.85-1.07L14.17 2.6c-.05-.28-.28-.47-.56-.47h-4.4c-.28 0-.5.19-.55.47L8.18 5.19c-.67.27-1.28.63-1.84 1.07L3.61 5.16c-.24-.09-.54 0-.67.23L.74 9.2c-.14.24-.08.54.13.7L3.2 11.72c-.04.33-.07.67-.07 1.08s.03.75.07 1.08L.87 15.7c-.21.16-.27.46-.13.7l2.2 3.81c.13.23.43.32.67.23l2.73-1.1c.57.44 1.18.8 1.85 1.07l.38 2.59c.05.28.27.47.55.47h4.4c.28 0 .51-.19.56-.47l.38-2.59c.67-.27 1.28-.63 1.85-1.07l2.73 1.1c.24.09.54 0 .67-.23l2.2-3.81c.14-.24.08-.54-.13-.7l-2.32-1.82z"/>
+                        </svg>
+                    </button>
+                </div>
             </div>
         </header>
         <div id="cards-grid" class="cards-grid"></div>
@@ -977,6 +1324,11 @@
     </div>
 
     <button class="fab" id="fab" onclick="openCreate(false)" aria-label="Create new prompt">
+        <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
+    </button>
+
+    <!-- Vault FAB — only visible when vault is open -->
+    <button class="vault-fab" id="vault-fab" onclick="openCreate(true)" aria-label="Add to vault">
         <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
     </button>
 
@@ -1013,17 +1365,15 @@
                 </div>
             </div>
             <div>
-                <div class="field-label">Reference Image (Optional)</div>
+                <div class="field-label" style="display:flex; justify-content:space-between; align-items:center;">
+                    <span>Reference Images (Optional)</span>
+                    <span id="img-count-label" style="font-size:11px; font-weight:800; color:var(--clr-outline);">0/5</span>
+                </div>
+                <div id="img-thumbs-row" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:8px;"></div>
                 <div class="drop-zone" id="drop-zone" onclick="document.getElementById('file-input').click()" role="button">
                     <svg viewBox="0 0 24 24"><path d="M21 19V5c0-1.1-.9-2-2-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2zM8.5 13.5l2.5 3.01L14.5 12l4.5 6H5l3.5-4.5z"/></svg>
-                    <span class="dz-label">Tap to upload image</span>
-                    <span class="dz-hint">PNG · JPG · WebP · GIF</span>
-                </div>
-                <div class="img-preview-box" id="img-preview-box" style="display:none">
-                    <img id="img-preview" src="" alt="Uploaded reference">
-                    <button class="btn btn-error-tonal" onclick="removeImage()" style="margin:10px;align-self:flex-start;font-size:13px;padding:9px 18px;">
-                        Remove Image
-                    </button>
+                    <span class="dz-label">Tap to add image</span>
+                    <span class="dz-hint">PNG · JPG · WebP · GIF — up to 5 images</span>
                 </div>
                 <input type="file" id="file-input" accept="image/*" style="display:none" onchange="handleFile(event)">
             </div>
@@ -1173,7 +1523,7 @@
                         <svg viewBox="0 0 24 24"><path d="M9 21h9c.83 0 1.54-.5 1.84-1.22l3.02-7.05c.09-.23.14-.47.14-.73v-2c0-1.1-.9-2-2-2h-6.31l.95-4.57.03-.32c0-.41-.17-.79-.44-1.06L14.17 1 7.58 7.59C7.22 7.95 7 8.45 7 9v10c0 1.1.9 2 2 2zM9 9l4.34-4.34L12 10h9v2l-3 7H9V9zM1 9h4v12H1z"/></svg>
                     </div>
                     <div class="settings-item-text">
-                        <h3>Prompy v4,5</h3>
+                        <h3>Prompy v5.0</h3>
                         <p>Learn more about the creator</p>
                     </div>
                     <svg class="settings-chevron" viewBox="0 0 24 24"><path d="M8.59 16.59L13.17 12 8.59 7.41 10 6l6 6-6 6-1.41-1.41z"/></svg>
@@ -1234,33 +1584,124 @@
 
     <!-- ═══ VAULT ═══ -->
     <div id="screen-vault" class="screen slide-right">
-        <div class="vault-topbar">
-            <button class="back-btn" onclick="closeVault()" aria-label="Lock vault">
-                <svg viewBox="0 0 24 24"><path d="M19 11H7.83l4.88-4.88c.39-.39.39-1.03 0-1.42-.39-.39-1.02-.39-1.41 0l-6.59 6.59c-.39.39-.39 1.02 0 1.41l6.59 6.59c.39.39 1.02.39 1.41 0 .39-.39.39-1.02 0-1.41L7.83 13H19c.55 0 1-.45 1-1s-.45-1-1-1z"/></svg>
-            </button>
-            <span class="vault-topbar-title">Vault</span>
-            <div style="display: flex; gap: 8px;">
-                <button class="icon-btn" onclick="openFilterSheet()" aria-label="Filter">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
-                </button>
-                <button class="icon-btn" onclick="showVaultDataOptions()" aria-label="Import or Export Vault">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3L5 7h3v7h2V7h3L9 3zm6 18l4-4h-3v-7h-2v7h-3l4 4z"/></svg>
-                </button>
-                <button class="icon-btn" onclick="openSearch(true)" aria-label="Search in vault">
-                    <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
-                </button>
-                <button class="icon-btn" onclick="openCreate(true)" aria-label="Add to vault">
-                    <svg viewBox="0 0 24 24"><path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/></svg>
-                </button>
+        <header class="dash-header" id="vault-header">
+            <div id="vault-title-area" style="display:flex;align-items:center;gap:8px;flex:1;min-width:0">
+                <h1 class="app-wordmark">Vau<span>lt</span></h1>
             </div>
-        </div>
-        <div id="vault-grid" class="cards-grid" style="padding-bottom:32px"></div>
+            <div style="display:flex;gap:8px;align-items:center">
+                <div id="vault-sel-actions" style="display:none;gap:8px;align-items:center">
+                    <button class="icon-btn" onclick="exportSelected()" aria-label="Export selected" title="Export selected" style="background:var(--clr-secondary-container);color:var(--clr-on-secondary-container)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                    </button>
+                    <button class="icon-btn" onclick="uploadSelected()" aria-label="Upload selected" title="Upload to cloud" style="background:var(--clr-primary-container);color:var(--clr-on-primary-container)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                    </button>
+                    <button class="icon-btn" onclick="deleteSelected()" aria-label="Delete selected" title="Delete selected" style="background:var(--clr-error-container);color:var(--clr-on-error-container)">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </button>
+                </div>
+                <div id="vault-normal-actions" style="display:flex;gap:8px">
+                    <button class="icon-btn" onclick="openSearch(true)" aria-label="Search vault">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M15.5 14h-.79l-.28-.27A6.471 6.471 0 0 0 16 9.5 6.5 6.5 0 1 0 9.5 16c1.61 0 3.09-.59 4.23-1.57l.27.28v.79l5 4.99L20.49 19l-4.99-5zm-6 0C7.01 14 5 11.99 5 9.5S7.01 5 9.5 5 14 7.01 14 9.5 11.99 14 9.5 14z"/></svg>
+                    </button>
+                    <button class="icon-btn" onclick="openFilterSheet()" aria-label="Filter vault">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M3 17v2h6v-2H3zM3 5v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z"/></svg>
+                    </button>
+                    <button class="icon-btn" id="vault-settings-btn" onclick="openVaultSettings()" aria-label="Vault settings">
+                        <svg viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 15.5A3.5 3.5 0 0 1 8.5 12 3.5 3.5 0 0 1 12 8.5a3.5 3.5 0 0 1 3.5 3.5 3.5 3.5 0 0 1-3.5 3.5m7.43-2.92c.04-.33.07-.67.07-1.08 0-.41-.03-.75-.07-1.08l2.32-1.82c.21-.16.27-.46.13-.7l-2.2-3.81c-.13-.23-.43-.32-.67-.23l-2.73 1.1c-.57-.44-1.18-.8-1.85-1.07L14.17 2.6c-.05-.28-.28-.47-.56-.47h-4.4c-.28 0-.5.19-.55.47L8.18 5.19c-.67.27-1.28.63-1.84 1.07L3.61 5.16c-.24-.09-.54 0-.67.23L.74 9.2c-.14.24-.08.54.13.7L3.2 11.72c-.04.33-.07.67-.07 1.08s.03.75.07 1.08L.87 15.7c-.21.16-.27.46-.13.7l2.2 3.81c.13.23.43.32.67.23l2.73-1.1c.57.44 1.18.8 1.85 1.07l.38 2.59c.05.28.27.47.55.47h4.4c.28 0 .51-.19.56-.47l.38-2.59c.67-.27 1.28-.63 1.85-1.07l2.73 1.1c.24.09.54 0 .67-.23l2.2-3.81c.14-.24.08-.54-.13-.7l-2.32-1.82z"/>
+                        </svg>
+                    </button>
+                    <button class="back-btn" onclick="closeVault()" aria-label="Go back" style="margin-left:2px">
+                        <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+                    </button>
+                </div>
+            </div>
+        </header>
+        <div id="vault-grid" class="cards-grid" style="padding-bottom:120px"></div>
         <div id="vault-empty" class="vault-empty" style="display:none">
             <div class="vault-empty-icon">
                 <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
             </div>
             <p>Your vault is empty.</p>
             <p style="font-size:13px;opacity:.7">Tap + to add a secure prompt.</p>
+        </div>
+    </div>
+
+    <!-- ═══ VAULT SETTINGS ═══ -->
+    <div id="screen-vault-settings" class="screen slide-right">
+        <header class="screen-header">
+            <button class="back-btn" onclick="closeVaultSettings()" aria-label="Go back">
+                <svg viewBox="0 0 24 24"><path d="M20 11H7.83l5.59-5.59L12 4l-8 8 8 8 1.41-1.41L7.83 13H20v-2z"/></svg>
+            </button>
+            <h2>Vault Settings</h2>
+        </header>
+        <div class="settings-body">
+            <div class="settings-section">
+                <div class="settings-section-label">Vault Data</div>
+                <div class="settings-item" onclick="closeVaultSettings();setTimeout(()=>showZipTypeChoice(),350)" role="button">
+                    <div class="settings-item-icon s-tertiary">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Export Vault</h3>
+                        <p>Save a ZIP backup of your secure prompts</p>
+                    </div>
+                </div>
+                <div class="settings-item" onclick="closeVaultSettings();setTimeout(()=>handleImport(true),350)" role="button">
+                    <div class="settings-item-icon s-tertiary">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M9 3L5 7h3v7h2V7h3L9 3zm6 18l4-4h-3v-7h-2v7h-3l4 4z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Import Vault</h3>
+                        <p>Restore secure prompts from a ZIP file</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <div class="settings-section-label">Cloud Sync</div>
+                <div class="settings-item" onclick="closeVaultSettings();setTimeout(()=>backendlessUpload('vault'),350)" role="button">
+                    <div class="settings-item-icon s-primary">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Upload Vault to Cloud</h3>
+                        <p>Back up secure prompts to your cloud account</p>
+                    </div>
+                </div>
+                <div class="settings-item" onclick="closeVaultSettings();setTimeout(()=>backendlessFetch(),350)" role="button">
+                    <div class="settings-item-icon s-secondary">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM12.5 11v4h-2.5l4-4.5 4 4.5H15v-4h-2.5z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Fetch from Cloud</h3>
+                        <p>Pull your latest cloud-backed-up prompts</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="settings-section">
+                <div class="settings-section-label">Security</div>
+                <div class="settings-item" onclick="closeVaultSettings();setTimeout(()=>openPinSetup('vault'),350)" role="button">
+                    <div class="settings-item-icon s-secondary">
+                        <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Change Vault PIN</h3>
+                        <p>Update the PIN used to unlock your vault</p>
+                    </div>
+                </div>
+                <div class="settings-item settings-item-danger" onclick="closeVaultSettings();setTimeout(()=>resetVaultPin(),350)" role="button">
+                    <div class="settings-item-icon s-error">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 5V1L7 6l5 5V7c3.31 0 6 2.69 6 6 0 2.97-2.17 5.43-5 5.91v2.02c3.95-.49 7-3.85 7-7.93 0-4.42-3.58-8-8-8zm-6 8c0-1.65.67-3.15 1.76-4.24L6.34 7.34A7.95 7.95 0 0 0 4 13c0 4.08 3.05 7.44 7 7.93v-2.02c-2.83-.48-5-2.94-5-5.91z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Reset Vault PIN</h3>
+                        <p>Clear the current PIN and set a new one</p>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -1424,13 +1865,112 @@
                         <p>Restore normal prompts from a ZIP file</p>
                     </div>
                 </div>
-                            <div class="settings-item" onclick="resetVaultPin()" role="button">
+                <div class="settings-item" onclick="resetVaultPin()" role="button">
                     <div class="settings-item-icon s-error">
                         <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/></svg>
                     </div>
                     <div class="settings-item-text">
                         <h3>Reset Vault PIN</h3>
                         <p>Clear and recreate your vault PIN</p>
+                    </div>
+                </div>
+                <div class="settings-item settings-item-danger" onclick="showDeleteAllModal()" role="button">
+                    <div class="settings-item-icon s-error">
+                        <svg viewBox="0 0 24 24" fill="currentColor"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Delete All Local Data</h3>
+                        <p>Erase all prompts, vault, PIN, and settings</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Migration -->
+            <div class="settings-section">
+                <div class="settings-section-label">Migration</div>
+                <div class="settings-item" onclick="migrateFromLegacyZip()" role="button">
+                    <div class="settings-item-icon s-secondary">
+                        <svg viewBox="0 0 24 24"><path d="M19 8l-4 4h3c0 3.31-2.69 6-6 6-1.01 0-1.97-.25-2.8-.7l-1.46 1.46C8.97 19.54 10.43 20 12 20c4.42 0 8-3.58 8-8h3l-4-4zM6 12c0-3.31 2.69-6 6-6 1.01 0 1.97.25 2.8.7l1.46-1.46C15.03 4.46 13.57 4 12 4c-4.42 0-8 3.58-8 8H1l4 4 4-4H6z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Import from Old App</h3>
+                        <p>Migrate prompts from a legacy ZIP export</p>
+                    </div>
+                </div>
+            </div>
+            <div class="settings-section">
+                <div class="settings-section-label">Backendless Sync</div>
+                <div class="settings-item" onclick="showUploadChoice()" role="button" id="bl-upload-row">
+                    <div class="settings-item-icon s-primary">
+                        <svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Upload Prompts</h3>
+                        <p>Push all prompts to Backendless one by one</p>
+                    </div>
+                    <div id="bl-upload-badge" class="bl-badge" style="display:none">
+                        <span id="bl-upload-badge-text">0</span>
+                    </div>
+                </div>
+                <div class="settings-item" onclick="backendlessFetch()" role="button">
+                    <div class="settings-item-icon s-secondary">
+                        <svg viewBox="0 0 24 24"><path d="M17.65 6.35A7.958 7.958 0 0 0 12 4c-4.42 0-7.99 3.58-7.99 8s3.57 8 7.99 8c3.73 0 6.84-2.55 7.73-6h-2.08A5.99 5.99 0 0 1 12 18c-3.31 0-6-2.69-6-6s2.69-6 6-6c1.66 0 3.14.69 4.22 1.78L13 11h7V4l-2.35 2.35z"/></svg>
+                    </div>
+                    <div class="settings-item-text">
+                        <h3>Update Feed</h3>
+                        <p>Pull latest prompts from Backendless</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Backendless API Key -->
+            <div class="settings-section" style="margin-bottom:40px">
+                <div class="settings-section-label">API Configuration</div>
+                <div class="bl-key-wrap">
+                    <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+                        <div class="settings-item-icon s-tertiary" style="flex-shrink:0">
+                            <svg viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
+                        </div>
+                        <div class="settings-item-text">
+                            <h3>App ID</h3>
+                            <p>Your Backendless App ID (saved locally, optional)</p>
+                        </div>
+                    </div>
+                    <input type="text" id="bl-app-id-input" class="text-input bl-key-input"
+                           placeholder="Leave empty to use default app…"
+                           autocomplete="off" autocorrect="off" spellcheck="false"
+                           oninput="saveBackendlessAppId(this.value)">
+                    <p style="font-size:11px;color:var(--clr-outline);margin-top:6px">Find your App ID in your Backendless dashboard under Manage → App Settings</p>
+
+                    <div style="display:flex;gap:12px;align-items:center;margin-top:16px;margin-bottom:12px">
+                        <div class="settings-item-icon s-tertiary" style="flex-shrink:0">
+                            <svg viewBox="0 0 24 24"><path d="M12.65 10C11.83 7.67 9.61 6 7 6c-3.31 0-6 2.69-6 6s2.69 6 6 6c2.61 0 4.83-1.67 5.65-4H17v2h1.99l.01-2h2v-2h-8.35zM7 14c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2z"/></svg>
+                        </div>
+                        <div class="settings-item-text">
+                            <h3>REST API Key</h3>
+                            <p>Your Backendless REST API key (saved locally)</p>
+                        </div>
+                    </div>
+                    <input type="text" id="bl-api-key-input" class="text-input bl-key-input"
+                           placeholder="Enter REST API key…"
+                           autocomplete="off" autocorrect="off" spellcheck="false"
+                           oninput="saveBackendlessKey(this.value)">
+                    <p style="font-size:11px;color:var(--clr-outline);margin-top:6px">Find your API key in your Backendless dashboard under Manage → API Keys</p>
+                    <!-- Built-in console -->
+                    <div class="bl-console" style="margin-top:12px">
+                        <div class="bl-console-bar">
+                            <span class="bl-console-title">
+                                <svg viewBox="0 0 24 24" width="13" height="13" style="fill:currentColor;margin-right:5px;vertical-align:-2px"><path d="M20 4H4c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V6c0-1.1-.9-2-2-2zm0 14H4V6h16v12zM6 10l1.41 1.41L9 9.83V14h2V9.83l1.59 1.59L14 10l-4-4-4 4z"/></svg>
+                                Console
+                            </span>
+                            <div style="display:flex;gap:6px">
+                                <button class="bl-console-clear" onclick="copyBlConsole()">Copy</button>
+                                <button class="bl-console-clear" onclick="clearBlConsole()">Clear</button>
+                            </div>
+                        </div>
+                        <div class="bl-console-output" id="bl-console-output">
+                            <div class="bl-con-line info">[ready] Backendless console initialised.</div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -1447,13 +1987,13 @@
         </header>
         <div class="about-body">
             <div class="about-avatar-wrap" id="about-avatar-wrap">
-                <img src="img.png" alt="Monomixs">
+                <svg class="about-avatar-placeholder" viewBox="0 0 24 24"><path d="M12 12c2.76 0 5-2.24 5-5s-2.24-5-5-5-5 2.24-5 5 2.24 5 5 5zm0 2c-3.33 0-10 1.67-10 5v3h20v-3c0-3.33-6.67-5-10-5z"/></svg>
             </div>
 
-            <div class="about-version-pill">Prompy v4.5 Stable</div>
+            <div class="about-version-pill">Prompy v5.0 Stable</div>
 
             <h2 class="about-profile-name">
-                <span id="about-name">monomixs</span>
+                <span id="about-name">Wedley</span>
                 <svg class="about-github-icon" viewBox="0 0 24 24" onclick="openLink('https://github.com/monomixs')">
                     <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12"/>
                 </svg>
@@ -1464,14 +2004,21 @@
                     <svg class="info-icon" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
                     <div class="info-text">
                         <h4>Privacy First</h4>
-                        <p>All prompts and data are stored locally. No cloud, no tracking, just you and your ideas.</p>
+                        <p>All prompts and data are stored locally by default. No tracking, ever — cloud sync is entirely optional and only happens if you turn it on.</p>
                     </div>
                 </div>
                 <div class="info-item">
                     <svg class="info-icon" viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zM9 6c0-1.66 1.34-3 3-3s3 1.34 3 3v2H9V6zm9 14H6V10h12v10zm-6-3c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2z"/></svg>
                     <div class="info-text">
                         <h4>Secure Vault</h4>
-                        <p>Protect your sensitive prompts with biometric authentication and a secure PIN fallback.</p>
+                        <p>Protect your sensitive prompts behind a PIN, fully separate from your normal prompts.</p>
+                    </div>
+                </div>
+                <div class="info-item">
+                    <svg class="info-icon" viewBox="0 0 24 24" fill="currentColor"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+                    <div class="info-text">
+                        <h4>Cloud Backup via Backendless</h4>
+                        <p>Optionally back up and sync your prompts using your own Backendless account — completely opt-in, and off by default.</p>
                     </div>
                 </div>
                 <div class="info-item">
@@ -1530,7 +2077,7 @@
       inVault:      false,
       editMode:     false,
       tags:         [],
-      imageB64:     null,
+      images:       [],
       pinSetupPhase: 1,
       pinSetupFirst: '',
       pinSetupBuffer: '',
@@ -1540,7 +2087,11 @@
       sortBy:        'Newest',
       isBiometricSetup: false,
       pinSetupTarget: 'vault', // 'vault' or 'app'
+      selectionMode: false,
+      selectedIds:   [],
+      selectionInVault: false,
     };
+    const MAX_IMAGES = 5;
 
     /* ════════════════════════════════════════════════════════
        STORAGE
@@ -1552,16 +2103,36 @@
       APP_PIN: 'prompy_app_pin',
 
       get(key) {
+        if (window.Android) {
+          if (key === this.PROMPTS) return JSON.parse(window.Android.loadPromptsFromFile('normal') || '[]');
+          if (key === this.VAULT)   return JSON.parse(window.Android.loadPromptsFromFile('vault') || '[]');
+        }
         try { return JSON.parse(localStorage.getItem(key) || 'null'); } catch { return null; }
       },
       set(key, val) {
-        try { localStorage.setItem(key, JSON.stringify(val)); } catch {
+        if (window.Android) {
+          if (key === this.PROMPTS) { window.Android.savePromptsToFile('normal', JSON.stringify(val)); return; }
+          if (key === this.VAULT)   { window.Android.savePromptsToFile('vault', JSON.stringify(val)); return; }
+        }
+        try {
+          const str = JSON.stringify(val);
+          localStorage.setItem(key, str);
+        } catch (e) {
+          console.error(`LS save failed for ${key}:`, e);
+          const sizeMB = (JSON.stringify(val).length / (1024 * 1024)).toFixed(2);
+          blLog(`STORAGE ERROR: Could not save ${sizeMB} MB to ${key}. Data exceeds browser limit.`, 'err');
           showToast('Storage full — try removing large images');
         }
       },
-      getPrompts()    { return (this.get(this.PROMPTS) || []).filter(p => p && p.id); },
+      getPrompts()    {
+        const val = this.get(this.PROMPTS);
+        return (Array.isArray(val) ? val : []).filter(p => p && p.id);
+      },
       setPrompts(arr) { this.set(this.PROMPTS, arr); },
-      getVault()      { return (this.get(this.VAULT) || []).filter(p => p && p.id); },
+      getVault()      {
+        const val = this.get(this.VAULT);
+        return (Array.isArray(val) ? val : []).filter(p => p && p.id);
+      },
       setVault(arr)   { this.set(this.VAULT, arr); },
       getPin()        { return this.get(this.PIN); },
       setPin(pin)     {
@@ -1601,6 +2172,48 @@
       return d.innerHTML;
     }
 
+    /* ── Multi-image helper ─────────────────────────────────────
+       Prompts store images in the `images` array (max 5). Old
+       prompts saved before this feature used a single `image`
+       string field. getImages() normalises both shapes so every
+       consumer just deals with an array. ── */
+    function getImages(p) {
+      if (!p) return [];
+      if (Array.isArray(p.images)) return p.images;
+      return p.image ? [p.image] : [];
+    }
+
+    function pad2(n) { return String(n).padStart(2, '0'); }
+
+    function nowStamp() {
+      const d = new Date();
+      return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}_${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    }
+
+    function stampToDate(val) {
+      if (!val) return new Date();
+      // Already canonical "YYYY-MM-DD_HH:MM:SS"
+      const m = String(val).match(/^(\d{4})-(\d{2})-(\d{2})_(\d{2}):(\d{2}):(\d{2})$/);
+      if (m) return new Date(+m[1], +m[2]-1, +m[3], +m[4], +m[5], +m[6]);
+      // Legacy numeric: seconds (10-digit) or milliseconds (13-digit)
+      const num = Number(val);
+      if (!isNaN(num) && num > 0) {
+        return new Date(num > 9_999_999_999 ? num : num * 1000);
+      }
+      // Last resort: let the engine try (ISO strings, etc.)
+      const d = new Date(val);
+      return isNaN(d.getTime()) ? new Date() : d;
+    }
+
+    function normalizeStamp(val) {
+      if (!val) return nowStamp();
+      if (/^\d{4}-\d{2}-\d{2}_\d{2}:\d{2}:\d{2}$/.test(String(val))) return val; // already correct
+      const d = stampToDate(val);
+      return `${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}_${pad2(d.getHours())}:${pad2(d.getMinutes())}:${pad2(d.getSeconds())}`;
+    }
+
+    function fileStamp() { return nowStamp().replace(/:/g, '-'); }
+
     function openLink(url) {
       if (window.Android && window.Android.openExternalUrl) {
         window.Android.openExternalUrl(url);
@@ -1628,7 +2241,7 @@
       if (el.classList.contains('show')) return;
 
       document.getElementById('modal-title').textContent = title;
-      document.getElementById('modal-message').textContent = msg;
+      document.getElementById('modal-message').innerHTML = msg;
       document.getElementById('modal-custom-content').innerHTML = '';
 
       const cancelBtn = document.getElementById('modal-cancel-btn');
@@ -1667,6 +2280,8 @@
 
     function hideFAB() { document.getElementById('fab').classList.add('hidden-fab'); }
     function showFAB() { document.getElementById('fab').classList.remove('hidden-fab'); }
+    function showVaultFAB() { document.getElementById('vault-fab').classList.add('visible'); }
+    function hideVaultFAB() { document.getElementById('vault-fab').classList.remove('visible'); }
 
     /* ════════════════════════════════════════════════════════
        DASHBOARD
@@ -1699,10 +2314,15 @@
        VAULT
     ════════════════════════════════════════════════════════ */
     function renderVault() {
-      let prompts = LS.getVault();
+      const promptsRaw = LS.getVault();
+      let prompts = [...promptsRaw];
       const grid    = document.getElementById('vault-grid');
       const empty   = document.getElementById('vault-empty');
       grid.innerHTML = '';
+
+      if (State.searchTags.length > 0) {
+        blLog(`Vault rendering: filtering ${prompts.length} prompts by tags: ${State.searchTags.join(', ')}`, 'info');
+      }
 
       prompts = filterBySelectedTags(prompts);
       prompts = sortPrompts(prompts);
@@ -1712,7 +2332,7 @@
         if (State.searchTags.length > 0) {
             empty.querySelector('p').textContent = 'No secure prompts match the selected filters.';
         } else {
-            empty.querySelector('p').textContent = 'Your vault is empty.';
+            empty.querySelector('p').textContent = promptsRaw.length > 0 ? 'No prompts match active filters.' : 'Your vault is empty.';
         }
         return;
       }
@@ -1727,17 +2347,30 @@
       if (!p || !p.id) return document.createDocumentFragment();
 
       const card = document.createElement('div');
-      card.className = 'prompt-card' + (p.image ? ' has-image' : '');
+      const isSelected = State.selectionMode && State.selectedIds.includes(p.id) && State.selectionInVault === inVault;
+      const images = getImages(p);
+      card.className = 'prompt-card' + (images.length ? ' has-image' : '') + (isSelected ? ' selected' : '');
       card.setAttribute('data-id', p.id);
-      card.onclick = () => openView(p.id, inVault);
-
-      // Staggered entry animation delay
-      card.style.animationDelay = `${Math.min(index * 40, 600)}ms`;
 
       let inner = '';
 
-      if (p.image) {
-        inner += `<div class="card-thumb"><img src="${p.image}" alt="Reference image" loading="lazy"></div>`;
+      // Selection indicator overlay
+      if (State.selectionMode && State.selectionInVault === inVault) {
+        if (isSelected) {
+          inner += `<div class="card-select-check"><svg viewBox="0 0 24 24"><path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z"/></svg></div>`;
+        } else {
+          inner += `<div class="card-select-empty"></div>`;
+        }
+      }
+
+      if (images.length === 1) {
+        inner += `<div class="card-thumb"><img src="${images[0]}" alt="Reference image" loading="lazy"></div>`;
+      } else if (images.length >= 2) {
+        // Stacked photo effect: 2nd image peeks out behind, tilted right
+        inner += `<div class="card-thumb stacked">
+          <img class="thumb-back" src="${images[1]}" alt="" loading="lazy">
+          <img class="thumb-front" src="${images[0]}" alt="Reference image" loading="lazy">
+        </div>`;
       }
 
       inner += `<div class="card-title">${esc(p.title || 'Untitled')}</div>`;
@@ -1747,22 +2380,196 @@
         inner += `<div class="card-tags">${p.tags.map(t => `<span class="pill">${esc(t)}</span>`).join('')}</div>`;
       }
 
-      const iv = inVault ? 'true' : 'false';
-      inner += `
-        <div class="card-actions">
-          <button class="ca-btn ca-edit" aria-label="Edit" onclick="event.stopPropagation();quickEdit('${p.id}',${iv})">
-            <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
-          </button>
-          <button class="ca-btn ca-copy" aria-label="Copy prompt" onclick="event.stopPropagation();quickCopy('${p.id}',${iv},this)">
-            <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
-          </button>
-          <button class="ca-btn ca-del" aria-label="Delete" onclick="event.stopPropagation();quickDelete('${p.id}',${iv})">
-            <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
-          </button>
-        </div>`;
+      // Only show card actions when NOT in selection mode
+      if (!State.selectionMode) {
+        const iv = inVault ? 'true' : 'false';
+        inner += `
+          <div class="card-actions">
+            <button class="ca-btn ca-edit" aria-label="Edit" onclick="event.stopPropagation();quickEdit('${p.id}',${iv})">
+              <svg viewBox="0 0 24 24"><path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04a1 1 0 0 0 0-1.41l-2.34-2.34a1 1 0 0 0-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/></svg>
+            </button>
+            <button class="ca-btn ca-copy" aria-label="Copy prompt" onclick="event.stopPropagation();quickCopy('${p.id}',${iv},this)">
+              <svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>
+            </button>
+            <button class="ca-btn ca-del" aria-label="Delete" onclick="event.stopPropagation();quickDelete('${p.id}',${iv})">
+              <svg viewBox="0 0 24 24"><path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/></svg>
+            </button>
+          </div>`;
+      }
 
       card.innerHTML = inner;
+
+      // ── Suppress entry animation when already in selection mode (toggling) ──
+      if (State.selectionMode) {
+        card.style.animation = 'none';
+      } else {
+        card.style.animationDelay = `${Math.min(index * 40, 600)}ms`;
+      }
+
+      // ── Long-press detection with movement threshold ──
+      let _pressTimer = null;
+      let _didLongPress = false;
+      let _startX = 0, _startY = 0;
+
+      card.addEventListener('pointerdown', (e) => {
+        if (e.target.closest('.ca-btn')) return;
+        _didLongPress = false;
+        _startX = e.clientX;
+        _startY = e.clientY;
+        _pressTimer = setTimeout(() => {
+          _pressTimer = null;
+          _didLongPress = true;
+          if (navigator.vibrate) navigator.vibrate(50);
+          enterSelectionMode(p.id, inVault);
+        }, 500);
+      });
+
+      card.addEventListener('pointermove', (e) => {
+        if (_pressTimer === null) return;
+        const dx = e.clientX - _startX;
+        const dy = e.clientY - _startY;
+        // Cancel only if finger has moved more than 8px (ignores natural tremor)
+        if (dx * dx + dy * dy > 64) {
+          clearTimeout(_pressTimer);
+          _pressTimer = null;
+        }
+      });
+
+      card.addEventListener('pointerup',     () => { clearTimeout(_pressTimer); _pressTimer = null; });
+      card.addEventListener('pointercancel', () => { clearTimeout(_pressTimer); _pressTimer = null; });
+
+      // Prevent browser context menu from firing on long press (interferes on Android)
+      card.addEventListener('contextmenu', (e) => e.preventDefault());
+
+      // ── Tap / selection toggle ──
+      card.addEventListener('click', (e) => {
+        if (_didLongPress) { _didLongPress = false; return; }
+        if (State.selectionMode) {
+          if (State.selectionInVault !== inVault) return;
+          toggleCardSelection(p.id);
+          return;
+        }
+        openView(p.id, inVault);
+      });
+
       return card;
+    }
+
+    /* ════════════════════════════════════════════════════════
+       SELECTION MODE
+    ════════════════════════════════════════════════════════ */
+    function enterSelectionMode(id, inVault) {
+      State.selectionMode = true;
+      State.selectionInVault = inVault;
+      State.selectedIds = [id];
+      history.pushState({ type: 'selection' }, "");
+      updateSelectionUI(true);
+      if (inVault) renderVault(); else renderDashboard();
+    }
+
+    function exitSelectionMode(fromBack = false) {
+      State.selectionMode = false;
+      State.selectedIds = [];
+      if (!fromBack) history.back();
+      updateSelectionUI();
+      if (State.selectionInVault) renderVault(); else renderDashboard();
+    }
+
+    function toggleCardSelection(id) {
+      const idx = State.selectedIds.indexOf(id);
+      if (idx === -1) State.selectedIds.push(id);
+      else State.selectedIds.splice(idx, 1);
+
+      if (!State.selectedIds.length) {
+        exitSelectionMode();
+        return;
+      }
+      updateSelectionUI();
+      if (State.selectionInVault) renderVault(); else renderDashboard();
+    }
+
+    function updateSelectionUI(animate = false) {
+      const inVault   = State.selectionInVault;
+      const titleArea = document.getElementById(inVault ? 'vault-title-area' : 'dash-title-area');
+      const normalActions = document.getElementById(inVault ? 'vault-normal-actions' : 'dash-normal-actions');
+      const selActions     = document.getElementById(inVault ? 'vault-sel-actions' : 'dash-sel-actions');
+
+      if (State.selectionMode) {
+        const count = State.selectedIds.length;
+        titleArea.innerHTML = `<h1 class="app-wordmark ${animate ? 'sel-title-anim' : ''}" style="font-size:20px">${count} selected</h1>`;
+        normalActions.style.display = 'none';
+        selActions.style.display = 'flex';
+        if (animate) {
+          Array.from(selActions.children).forEach((btn, i) => {
+            btn.classList.remove('sel-btn-anim');
+            void btn.offsetWidth;
+            btn.style.animationDelay = `${i * 40}ms`;
+            btn.classList.add('sel-btn-anim');
+          });
+        }
+      } else {
+        titleArea.innerHTML = inVault
+          ? `<h1 class="app-wordmark">Vau<span>lt</span></h1>`
+          : `<h1 class="app-wordmark">Promp<span>y</span></h1>`;
+        selActions.style.display = 'none';
+        normalActions.style.display = 'flex';
+      }
+    }
+
+    function deleteSelected() {
+      if (!State.selectedIds.length) return;
+      const inVault = State.selectionInVault;
+      const count = State.selectedIds.length;
+      showModal('Delete Selected', `Delete ${count} prompt${count > 1 ? 's' : ''}? This cannot be undone.`, () => {
+        const pool = inVault ? LS.getVault() : LS.getPrompts();
+        const remaining = pool.filter(p => !State.selectedIds.includes(p.id));
+        if (inVault) LS.setVault(remaining); else LS.setPrompts(remaining);
+        showToast(`🗑️ Deleted ${count} prompt${count > 1 ? 's' : ''}`);
+        exitSelectionMode();
+      }, 'Delete', 'btn-error-tonal');
+    }
+
+    async function uploadSelected() {
+      if (!State.selectedIds.length) return;
+      const key = getBackendlessKey();
+      if (!key) { showToast('⚠️ Enter a Backendless REST API key first'); return; }
+      const pool = State.selectionInVault ? LS.getVault() : LS.getPrompts();
+      const isVaultSel = State.selectionInVault;
+      const prompts = pool
+        .filter(p => State.selectedIds.includes(p.id))
+        .map(p => ({ ...p, isVault: isVaultSel }));
+      if (!prompts.length) return;
+      const total = prompts.length;
+      blShowChip(`Uploading 0/${total}…`);
+      let success = 0;
+      for (let i = 0; i < prompts.length; i++) {
+        blShowChip(`Uploading ${i + 1}/${total}…`);
+        blLog(`[${i+1}/${total}] "${prompts[i].title}"`, 'log');
+        try { await uploadSinglePrompt(prompts[i], key); success++; }
+        catch(e) { blLog(`✗ ${e.message}`, 'err'); }
+      }
+      blHideChip();
+      showToast(success === total
+        ? `✅ Uploaded ${success} prompt${success > 1 ? 's' : ''}`
+        : `⚠️ ${success}/${total} uploaded`);
+      exitSelectionMode();
+    }
+
+    async function exportSelected() {
+      if (!State.selectedIds.length) return;
+      const inVault = State.selectionInVault;
+      const pool = inVault ? LS.getVault() : LS.getPrompts();
+      const prompts = pool.filter(p => State.selectedIds.includes(p.id)).map(p => ({ ...p, isVault: inVault }));
+      if (!prompts.length) return;
+      const count = prompts.length;
+      const fileName = inVault ? `Prompy_Vault_Selected_${fileStamp()}.zip` : `Prompy_Selected_${fileStamp()}.zip`;
+      if (window.Android && window.Android.exportPrompts) {
+        window.Android.exportPrompts(JSON.stringify(prompts), fileName, null);
+        showToast(`📤 Exporting ${count} prompt${count > 1 ? 's' : ''}…`);
+      } else {
+        showToast('Native export not available');
+      }
+      setTimeout(exitSelectionMode, 60);
     }
 
     /* ════════════════════════════════════════════════════════
@@ -1774,7 +2581,7 @@
       State.editMode  = false;
       State.currentId = null;
       State.tags      = [];
-      State.imageB64  = null;
+      State.images    = [];
 
       document.getElementById('create-screen-title').textContent = forVault ? 'New Vault Prompt' : 'New Prompt';
       document.getElementById('f-title').value   = '';
@@ -1788,8 +2595,8 @@
       renderTagPills();
       resetImageUI();
       hideFAB();
+      hideVaultFAB();
       openScreen('screen-create');
-      updateVaultStatusBar();
     }
 
     function closeCreate(fromBack = false) {
@@ -1797,8 +2604,10 @@
       if (!fromBack) { history.back(); return; }
       closeScreen('screen-create');
       setTimeout(() => {
-        if (!isOpen('screen-view')) showFAB();
-        updateVaultStatusBar();
+        if (!isOpen('screen-view')) {
+          if (isOpen('screen-vault')) showVaultFAB();
+          else showFAB();
+        }
       }, 380);
     }
 
@@ -1872,24 +2681,48 @@
     function handleFile(e) {
       const file = e.target.files[0];
       if (!file) return;
+      if (State.images.length >= MAX_IMAGES) {
+        showToast(`⚠️ Maximum ${MAX_IMAGES} images per prompt`);
+        e.target.value = '';
+        return;
+      }
       const reader = new FileReader();
       reader.onload = ev => {
-        State.imageB64 = ev.target.result;
-        document.getElementById('drop-zone').style.display = 'none';
-        const box = document.getElementById('img-preview-box');
-        box.style.display = 'flex';
-        document.getElementById('img-preview').src = State.imageB64;
+        State.images.push(ev.target.result);
+        renderImageThumbs();
       };
       reader.readAsDataURL(file);
       e.target.value = '';
     }
 
-    function removeImage() { State.imageB64 = null; resetImageUI(); }
+    function removeImageAt(idx) {
+      State.images.splice(idx, 1);
+      renderImageThumbs();
+    }
+
+    function renderImageThumbs() {
+      const row   = document.getElementById('img-thumbs-row');
+      const label = document.getElementById('img-count-label');
+      const dz    = document.getElementById('drop-zone');
+      if (!row || !label || !dz) return;
+
+      row.innerHTML = State.images.map((src, i) => `
+        <div class="img-thumb-item" style="animation-delay:${i * 40}ms">
+          <img src="${src}" alt="Reference image ${i + 1}">
+          <button class="thumb-del" type="button" onclick="removeImageAt(${i})" aria-label="Remove image">
+            <svg viewBox="0 0 24 24"><path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+          </button>
+          ${i === 0 ? '<span class="thumb-badge">Main</span>' : ''}
+        </div>
+      `).join('');
+
+      label.textContent = `${State.images.length}/${MAX_IMAGES}`;
+      dz.style.display = State.images.length >= MAX_IMAGES ? 'none' : '';
+    }
 
     function resetImageUI() {
-      document.getElementById('drop-zone').style.display = '';
-      document.getElementById('img-preview-box').style.display = 'none';
-      document.getElementById('img-preview').src = '';
+      State.images = [];
+      renderImageThumbs();
     }
 
     function savePrompt() {
@@ -1904,12 +2737,13 @@
       if (rawVal && !State.tags.includes(rawVal)) State.tags.push(rawVal);
       document.getElementById('tag-raw').value = '';
 
-      const now = Date.now();
+      const now = nowStamp();
       const prompt = {
         id:        State.editMode ? State.currentId : uid(),
         title, content,
         tags:      [...State.tags],
-        image:     State.imageB64 || null,
+        images:    [...State.images],
+        image:     undefined, // clear legacy single-image field (storage cleanup; JSON.stringify drops undefined keys)
         createdAt: State.editMode ? undefined : now,
         updatedAt: now,
       };
@@ -1954,7 +2788,15 @@
       if (p.tags && p.tags.length) {
         html += `<div class="view-tags">${p.tags.map(t => `<span class="pill">${esc(t)}</span>`).join('')}</div>`;
       }
-      if (p.image) html += `<div class="view-img-wrap"><img src="${p.image}" alt="Reference image"></div>`;
+      const imgs = getImages(p);
+      if (imgs.length === 1) {
+        html += `<div class="view-img-wrap"><img src="${imgs[0]}" alt="Reference image"></div>`;
+      } else if (imgs.length > 1) {
+        html += `<div class="view-img-gallery">` +
+          imgs.map((src, i) => `<div class="view-img-wrap"><img src="${src}" alt="Reference image ${i + 1}"></div>`).join('') +
+          `</div>
+          <div class="view-img-counter">${imgs.length} images — swipe to view</div>`;
+      }
       html += `<div class="view-prompt-text">${esc(p.content)}</div>`;
       body.innerHTML = html;
 
@@ -1963,8 +2805,8 @@
       copyBtn.innerHTML = `<svg viewBox="0 0 24 24"><path d="M16 1H4c-1.1 0-2 .9-2 2v14h2V3h12V1zm3 4H8c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h11c1.1 0 2-.9 2-2V7c0-1.1-.9-2-2-2zm0 16H8V7h11v14z"/></svg>Copy Prompt`;
 
       hideFAB();
+      hideVaultFAB();
       openScreen('screen-view');
-      updateVaultStatusBar();
     }
 
     function closeView(fromBack = false) {
@@ -1972,8 +2814,10 @@
       if (!fromBack) { history.back(); return; }
       closeScreen('screen-view');
       setTimeout(() => {
-        if (!isOpen('screen-create') && !isOpen('screen-search') && !isOpen('screen-vault')) showFAB();
-        updateVaultStatusBar();
+        if (!isOpen('screen-create') && !isOpen('screen-search')) {
+          if (isOpen('screen-vault')) showVaultFAB();
+          else showFAB();
+        }
       }, 380);
     }
 
@@ -1999,7 +2843,7 @@
 
       State.editMode = true;
       State.tags     = [...(p.tags || [])];
-      State.imageB64 = p.image || null;
+      State.images   = getImages(p).slice(0, MAX_IMAGES);
 
       document.getElementById('create-screen-title').textContent = 'Edit Prompt';
       document.getElementById('f-title').value   = p.title;
@@ -2010,14 +2854,7 @@
       document.getElementById('delete-prompt-btn').style.display = 'inline-flex';
       document.getElementById('quick-tags-panel').style.display = 'none';
       renderTagPills();
-
-      if (State.imageB64) {
-        document.getElementById('drop-zone').style.display = 'none';
-        document.getElementById('img-preview-box').style.display = 'flex';
-        document.getElementById('img-preview').src = State.imageB64;
-      } else {
-        resetImageUI();
-      }
+      renderImageThumbs();
 
       closeView();
       setTimeout(() => openScreen('screen-create'), 50);
@@ -2064,7 +2901,6 @@
     function openAbout() {
         if (isOpen('screen-about')) return;
         openScreen('screen-about');
-        fetchGitHubProfile();
     }
 
     function closeAbout(fromBack = false) {
@@ -2085,28 +2921,16 @@
         closeScreen('screen-advanced');
     }
 
-    async function fetchGitHubProfile() {
-        try {
-            const resp = await fetch('https://api.github.com/users/monomixs');
-            const data = await resp.json();
-            if (data && data.login) {
-                document.getElementById('about-name').textContent = data.name || data.login;
-            }
-        } catch (e) {
-            console.error('GitHub fetch failed', e);
-            document.getElementById('about-name').textContent = 'monomixs';
-        }
-    }
-
     function handleScrimClick() {
       if (isOpen('screen-settings')) closeSettings();
     }
 
     function resetVaultPin() {
-      showModal('Reset PIN', 'Reset vault PIN? Your vault prompts will remain, but you will need to set a new PIN.', () => {
+      showModal('Reset Vault PIN', 'This will remove your current PIN. Your vault prompts will remain safe. You will need to set a new PIN to re-lock.', () => {
         LS.clearPin();
         showToast('🔑 Vault PIN cleared');
-      }, 'Reset', 'btn-error-tonal');
+        setTimeout(() => openPinSetup('vault'), 700);
+      }, 'Reset PIN', 'btn-error-tonal');
     }
 
     /* ════════════════════════════════════════════════════════
@@ -2117,7 +2941,8 @@
       if (vaultBioEnabled && window.Android && window.Android.authenticateBiometric) {
         window._onVaultBioResult = (success, err) => {
           if (success) {
-            openVault();
+            closeSettings();
+            setTimeout(openVault, 50);
           } else {
             if (LS.getPin()) openPinEntry(); else openPinSetup();
           }
@@ -2244,7 +3069,13 @@
       if (State.pinEntryBuffer.length === 4) {
         setTimeout(() => {
           if (State.pinEntryBuffer === LS.getPin()) {
-            closePinEntry(true); openVault();
+            closePinEntry(true);
+            if (isOpen('screen-settings')) {
+              closeSettings();
+              setTimeout(openVault, 50);
+            } else {
+              openVault();
+            }
           } else {
             document.getElementById('pin-entry-err').textContent = 'Incorrect PIN — try again';
             updatePinDots('entry', 4, true);
@@ -2297,46 +3128,51 @@
     ════════════════════════════════════════════════════════ */
     function openVault() {
       if (isOpen('screen-vault')) return;
-      renderVault(); hideFAB(); openScreen('screen-vault');
-      setTimeout(updateVaultStatusBar, 50);
+      hideFAB();
+      openScreen('screen-vault');
+      // Render one RAF after openScreen so the 'open' class CSS transition has
+      // already started — cards animate in on a live-transitioning screen.
+      requestAnimationFrame(() => {
+        renderVault();
+        showVaultFAB();
+      });
     }
 
     function closeVault(fromBack = false) {
       if (!isOpen('screen-vault')) return;
       if (!fromBack) { history.back(); return; }
+      // Exit selection mode if active in vault
+      if (State.selectionMode && State.selectionInVault) {
+        State.selectionMode = false;
+        State.selectedIds = [];
+        State.selectionInVault = false;
+      }
       State.pinEntryBuffer = '';
+      hideVaultFAB();
       closeScreen('screen-vault');
       setTimeout(() => { if (!isOpen('screen-search') && !isOpen('screen-view')) showFAB(); }, 380);
-      if (window.Android && window.Android.updateStatusBarColor) {
-        window.Android.updateStatusBarColor(null);
-      }
     }
 
-    function updateVaultStatusBar() {
-      // Small delay to ensure any pending class changes (from openScreen) are applied
-      setTimeout(() => {
-        const isSearchOpen = isOpen('screen-search');
-        const isViewOpen   = isOpen('screen-view');
-        const isCreateOpen = isOpen('screen-create');
-        const isVaultOpen  = isOpen('screen-vault');
+    /* ════════════════════════════════════════════════════════
+       VAULT SETTINGS
+    ════════════════════════════════════════════════════════ */
+    function openVaultSettings() {
+      if (isOpen('screen-vault-settings')) return;
+      hideVaultFAB();
+      openScreen('screen-vault-settings');
+    }
 
-        if (isVaultOpen && !isSearchOpen && !isViewOpen && !isCreateOpen) {
-          const topbar = document.querySelector('.vault-topbar');
-          if (!topbar) return;
-          const color = getComputedStyle(topbar).backgroundColor;
-          const match = color.match(/rgb\((\d+),\s*(\d+),\s*(\d+)\)/);
-          if (match) {
-            const hex = "#" + ((1 << 24) + (parseInt(match[1]) << 16) + (parseInt(match[2]) << 8) + parseInt(match[3])).toString(16).slice(1);
-            if (window.Android && window.Android.updateStatusBarColor) {
-               window.Android.updateStatusBarColor(hex);
-            }
-          }
-        } else {
-          if (window.Android && window.Android.updateStatusBarColor) {
-             window.Android.updateStatusBarColor(null);
-          }
+    function closeVaultSettings(fromBack = false) {
+      if (!isOpen('screen-vault-settings')) return;
+      if (!fromBack) { history.back(); return; }
+      closeScreen('screen-vault-settings');
+      setTimeout(() => {
+        if (isOpen('screen-vault') && !isOpen('screen-view') &&
+            !isOpen('screen-create') && !isOpen('screen-search') &&
+            !State.selectionMode) {
+          showVaultFAB();
         }
-      }, 50);
+      }, 380);
     }
 
     /* ════════════════════════════════════════════════════════
@@ -2357,8 +3193,8 @@
       renderSearchTags();
       performSearch();
       hideFAB();
+      hideVaultFAB();
       openScreen('screen-search');
-      updateVaultStatusBar();
       setTimeout(() => document.getElementById('s-query').focus(), 400);
     }
 
@@ -2367,8 +3203,10 @@
       if (!fromBack) { history.back(); return; }
       closeScreen('screen-search');
       setTimeout(() => {
-        if (!isOpen('screen-view') && !isOpen('screen-vault')) showFAB();
-        updateVaultStatusBar();
+        if (!isOpen('screen-view')) {
+          if (isOpen('screen-vault')) showVaultFAB();
+          else showFAB();
+        }
       }, 380);
     }
 
@@ -2517,9 +3355,9 @@
       const sorted = [...arr];
       switch (State.sortBy) {
         case 'Newest':
-          return sorted.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+          return sorted.sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
         case 'Oldest':
-          return sorted.sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+          return sorted.sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
         case 'A–Z':
           return sorted.sort((a, b) => (a.title || '').localeCompare(b.title || ''));
         default:
@@ -2834,7 +3672,6 @@
       }
 
       if (save) localStorage.setItem('prompy_theme_color', hex);
-      updateVaultStatusBar();
     }
 
     function initThemeColor() {
@@ -2854,7 +3691,7 @@
       State.inVault   = inVault;
       State.editMode  = true;
       State.tags      = [...(p.tags || [])];
-      State.imageB64  = p.image || null;
+      State.images    = getImages(p).slice(0, MAX_IMAGES);
 
       document.getElementById('create-screen-title').textContent = 'Edit Prompt';
       document.getElementById('f-title').value   = p.title;
@@ -2865,11 +3702,7 @@
       document.getElementById('delete-prompt-btn').style.display = 'inline-flex';
       document.getElementById('quick-tags-panel').style.display = 'none';
       renderTagPills();
-      if (State.imageB64) {
-        document.getElementById('drop-zone').style.display = 'none';
-        document.getElementById('img-preview-box').style.display = 'flex';
-        document.getElementById('img-preview').src = State.imageB64;
-      } else { resetImageUI(); }
+      renderImageThumbs();
       hideFAB();
       openScreen('screen-create');
     }
@@ -2924,7 +3757,6 @@
       }
 
       showToast('🎨 Theme reset to default');
-      updateVaultStatusBar();
     }
 
     /* ════════════════════════════════════════════════════════
@@ -2946,7 +3778,6 @@
         applyDarkModeVars('dark');
         localStorage.setItem('prompy_theme', 'dark');
         if (window.Android && window.Android.updateTheme) window.Android.updateTheme('dark');
-        updateVaultStatusBar();
         amoledRow.classList.remove('dim');
         // Re-apply custom color in dark mode palette
         const savedColor = localStorage.getItem('prompy_theme_color');
@@ -2955,7 +3786,6 @@
         applyDarkModeVars('light');
         localStorage.setItem('prompy_theme', 'light');
         if (window.Android && window.Android.updateTheme) window.Android.updateTheme('light');
-        updateVaultStatusBar();
         amoledRow.classList.add('dim');
         amoledToggle.checked = false;
         // Re-apply custom color in light mode palette
@@ -2969,7 +3799,6 @@
       applyDarkModeVars(mode);
       localStorage.setItem('prompy_theme', mode);
       if (window.Android && window.Android.updateTheme) window.Android.updateTheme(mode);
-      updateVaultStatusBar();
       const savedColor = localStorage.getItem('prompy_theme_color');
       if (savedColor) applyThemeColor(savedColor, false);
     }
@@ -3048,6 +3877,9 @@
         document.getElementById('biometric-row').style.display = 'flex';
         document.getElementById('vault-biometric-row').style.display = 'flex';
       }
+
+      initBackendlessAppId();
+      initBackendlessKey();
     }
 
     function enableBiometrics(enabled) {
@@ -3086,6 +3918,26 @@
       }
     }
 
+    /* ── Migration from localStorage to File System ── */
+    function migrateToFilesystem() {
+      if (!window.Android) return;
+
+      const localPrompts = localStorage.getItem('prompy_prompts');
+      if (localPrompts && localPrompts !== '[]') {
+        window.Android.savePromptsToFile('normal', localPrompts);
+        localStorage.setItem('prompy_prompts', '[]');
+        console.log("Migrated normal prompts to FS");
+      }
+
+      const localVault = localStorage.getItem('prompy_vault');
+      if (localVault && localVault !== '[]') {
+        window.Android.savePromptsToFile('vault', localVault);
+        localStorage.setItem('prompy_vault', '[]');
+        console.log("Migrated vault prompts to FS");
+      }
+    }
+    migrateToFilesystem();
+
     /* ════════════════════════════════════════════════════════
        EXPORT / IMPORT
     ════════════════════════════════════════════════════════ */
@@ -3096,11 +3948,17 @@
         return;
       }
 
-      const fileName = isVault ? `Prompy_Vault_Export_${Date.now()}.zip` : `Prompy_Prompts_Export_${Date.now()}.zip`;
+      const fileName = isVault ? `Prompy_Vault_Export_${fileStamp()}.zip` : `Prompy_Prompts_Export_${fileStamp()}.zip`;
 
       if (window.Android && window.Android.exportPrompts) {
-        // Tag each prompt with its vault status just in case
-        const data = prompts.map(p => ({ ...p, isVault: !!isVault }));
+        // Tag each prompt with its vault status just in case, and normalise the
+        // image field shape so the native exporter always sees an `images` array.
+        const data = prompts.map(p => ({
+          ...p,
+          images: getImages(p),
+          image: undefined,
+          isVault: !!isVault
+        }));
         window.Android.exportPrompts(JSON.stringify(data), fileName, password);
       } else {
         showToast('Native export not available');
@@ -3127,6 +3985,8 @@
 
             imported.forEach(p => {
               if (!p.id) p.id = uid(); // Ensure ID
+              if (p.createdAt) p.createdAt = normalizeStamp(p.createdAt);
+              if (p.updatedAt) p.updatedAt = normalizeStamp(p.updatedAt);
 
               // Determine if it goes to vault or normal based on:
               // 1. Where the user clicked "Import" (the argument isVault)
@@ -3172,36 +4032,15 @@
       }
     }
 
-    function showVaultDataOptions() {
-      showModal('Vault Data', 'Choose an action for your secure prompts.', null, 'Export', 'btn-filled');
-
-      const confirmBtn = document.getElementById('modal-confirm-btn');
-      const cancelBtn  = document.getElementById('modal-cancel-btn');
-
-      cancelBtn.textContent = 'Import ZIP';
-      cancelBtn.onclick = () => {
-        closeModal();
-        handleImport(true);
-      };
-
-      confirmBtn.onclick = () => {
-        showZipTypeChoice();
-      };
-    }
-
     function showZipTypeChoice() {
+      showModal('ZIP Type', 'Protect your vault export with a password?', null, 'Cancel', 'btn-surface');
       document.getElementById('modal-custom-content').innerHTML = `
         <div style="display:flex; flex-direction:column; gap:10px; margin-top:16px;">
             <button class="btn btn-tonal" style="font-size:14px" onclick="handleExport(true); closeModal();">Normal ZIP (No Password)</button>
             <button class="btn btn-filled" style="font-size:14px" onclick="showPasswordOptions()">Password Protected ZIP</button>
         </div>
       `;
-      document.getElementById('modal-title').textContent = 'ZIP Type';
-      document.getElementById('modal-message').textContent = 'Protect your vault export with a password?';
       document.getElementById('modal-confirm-btn').style.display = 'none';
-      const cBtn = document.getElementById('modal-cancel-btn');
-      cBtn.textContent = 'Cancel';
-      cBtn.onclick = () => closeModal();
     }
 
     function showPasswordOptions() {
@@ -3236,6 +4075,648 @@
     }
 
     /* ════════════════════════════════════════════════════════
+       MIGRATION FROM LEGACY APP (browser-side ZIP read)
+    ════════════════════════════════════════════════════════ */
+    function migrateFromLegacyZip() {
+      const input = document.createElement('input');
+      input.type   = 'file';
+      input.accept = '.zip,application/zip,application/x-zip-compressed';
+      input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        showToast('📦 Reading legacy ZIP…');
+
+        try {
+          const buf = await file.arrayBuffer();
+          const zip = await JSZip.loadAsync(buf);
+
+          // ── Group all entries by their immediate parent folder ──────────
+          // Structure: ZIP root → folder-per-prompt → { *.txt, optional image }
+          const byFolder = {};
+          zip.forEach((relPath, entry) => {
+            if (entry.dir) return;
+            const parts = relPath.split('/').filter(Boolean);
+            if (parts.length < 2) return;          // skip root-level loose files
+
+            // Use the last folder in the path as the grouping key,
+            // so it works whether prompts are 1 or 2 levels deep.
+            const folderKey = parts.slice(0, -1).join('/');
+            const fileName  = parts[parts.length - 1];
+            if (!byFolder[folderKey]) byFolder[folderKey] = [];
+            byFolder[folderKey].push({ fileName, entry });
+          });
+
+          const existing = LS.getPrompts();
+          const vault    = LS.getVault();
+          let imported = 0, importedNormal = 0, importedVault = 0, skipped = 0, failed = 0;
+
+          for (const [folderKey, files] of Object.entries(byFolder)) {
+            try {
+              // ── Find the text file that holds the prompt JSON ───────────
+              const txtFile = files.find(f => /\.txt$/i.test(f.fileName));
+              if (!txtFile) continue;                // not a prompt folder
+
+              const raw    = await txtFile.entry.async('string');
+              const record = JSON.parse(raw);
+
+              // Validate it looks like a prompt
+              if (!record.title && !record.content) continue;
+
+              const id = record.id || uid();
+
+              // Skip duplicates
+              if (existing.some(p => p.id === id) || vault.some(p => p.id === id)) {
+                skipped++;
+                continue;
+              }
+
+              // ── Find optional image sibling ─────────────────────────────
+              const imgFile = files.find(f =>
+                /\.(png|jpe?g|gif|webp|svg)$/i.test(f.fileName)
+              );
+
+              let imageData = null;
+              if (imgFile) {
+                const ext  = imgFile.fileName.split('.').pop().toLowerCase();
+                const mime = ext === 'jpg' || ext === 'jpeg' ? 'image/jpeg'
+                           : ext === 'png'  ? 'image/png'
+                           : ext === 'gif'  ? 'image/gif'
+                           : ext === 'webp' ? 'image/webp'
+                           : ext === 'svg'  ? 'image/svg+xml'
+                           : 'image/png';
+                const b64  = await imgFile.entry.async('base64');
+                imageData  = `data:${mime};base64,${b64}`;
+              }
+
+              // ── Map old fields → new format ─────────────────────────────
+              const prompt = {
+                id,
+                title    : record.title   || 'Untitled',
+                content  : record.content || '',
+                tags     : Array.isArray(record.tags) ? record.tags : [],
+                images   : imageData ? [imageData] : [],
+                // Normalise any timestamp format (ms or seconds) → human-readable
+                createdAt: normalizeStamp(record.updatedAt || record.createdAt)
+              };
+
+              if (record.isVault) {
+                vault.push(prompt);
+                importedVault++;
+              } else {
+                existing.push(prompt);
+                importedNormal++;
+              }
+              imported++;
+
+            } catch (err) {
+              console.error(`Migration error in "${folderKey}":`, err);
+              failed++;
+            }
+          }
+
+          // ── Save ────────────────────────────────────────────────────
+          LS.setPrompts(existing);
+          LS.setVault(vault);
+
+          // ── Build descriptive toast ──────────────────────────────────
+          const parts = [];
+          if (importedNormal) parts.push(`${importedNormal} normal`);
+          if (importedVault)  parts.push(`${importedVault} vault`);
+          const summary = parts.length
+            ? `✅ Imported: ${parts.join(' + ')}`
+            : `⚠️ No new prompts found`;
+          const extras = [];
+          if (skipped) extras.push(`${skipped} duplicate${skipped !== 1 ? 's' : ''} skipped`);
+          if (failed)  extras.push(`${failed} failed`);
+          showToast([summary, ...extras].join(' · '), 6000);
+
+          // ── Close overlay screens and re-render dashboard ────────────
+          if (isOpen('screen-advanced')) closeAdvanced(true);
+          if (isOpen('screen-settings')) closeSettings(true);
+
+          setTimeout(() => {
+            if (importedNormal) renderDashboard();
+          }, 420);
+
+        } catch (err) {
+          console.error('Migration failed:', err);
+          showToast('❌ Migration failed — is this a valid legacy ZIP?');
+        }
+      };
+      input.click();
+    }
+
+    /* ════════════════════════════════════════════════════════
+       BACKENDLESS SYNC
+    ════════════════════════════════════════════════════════ */
+    // Default app ID (fallback if user hasn't set their own)
+    const BL_DEFAULT_APP_ID = 'A2151141-C723-467B-B96A-6FB8C341314B';
+    const BL_FOLDER = 'prompts'; // base folder; subfolders: prompts/normal, prompts/vault
+
+    function getBackendlessAppId() {
+      return (localStorage.getItem('prompy_backendless_app_id') || '').trim() || BL_DEFAULT_APP_ID;
+    }
+    function saveBackendlessAppId(val) {
+      localStorage.setItem('prompy_backendless_app_id', val.trim());
+    }
+    function initBackendlessAppId() {
+      const input = document.getElementById('bl-app-id-input');
+      if (input) input.value = getBackendlessAppId();
+    }
+
+    // Dynamically construct BL_BASE using the stored or default app ID
+    function getBLBase() {
+      return `https://api.backendless.com/${getBackendlessAppId()}`;
+    }
+
+    function getBackendlessKey() {
+      return (localStorage.getItem('prompy_backendless_key') || '').trim();
+    }
+    function saveBackendlessKey(val) {
+      localStorage.setItem('prompy_backendless_key', val.trim());
+    }
+    function initBackendlessKey() {
+      const input = document.getElementById('bl-api-key-input');
+      if (input) input.value = getBackendlessKey();
+    }
+
+    /* ── Progress chip ── */
+    function blShowChip(text) {
+      const chip  = document.getElementById('bl-progress-chip');
+      const label = document.getElementById('bl-progress-text');
+      if (!chip || !label) return;
+      label.textContent = text;
+      chip.style.display = 'flex';
+    }
+    function blHideChip() {
+      const chip = document.getElementById('bl-progress-chip');
+      if (chip) chip.style.display = 'none';
+    }
+    function blSetBadge(n, total) {
+      const badge = document.getElementById('bl-upload-badge');
+      const text  = document.getElementById('bl-upload-badge-text');
+      if (!badge || !text) return;
+      if (n === null) { badge.style.display = 'none'; return; }
+      text.textContent = `${n}/${total}`;
+      badge.style.display = 'flex';
+    }
+
+    /* ── Built-in console ── */
+    function blLog(msg, type = 'log') {
+      const out = document.getElementById('bl-console-output');
+      if (!out) return;
+      const line = document.createElement('div');
+      line.className = `bl-con-line ${type}`;
+      const t = new Date().toLocaleTimeString('en-US', { hour12: false });
+      line.textContent = `[${t}] ${msg}`;
+      out.appendChild(line);
+      out.scrollTop = out.scrollHeight;
+    }
+    function clearBlConsole() {
+      const out = document.getElementById('bl-console-output');
+      if (out) out.innerHTML = '';
+      blLog('Console cleared.', 'info');
+    }
+    function copyBlConsole() {
+      const out = document.getElementById('bl-console-output');
+      if (!out) return;
+      const text = Array.from(out.querySelectorAll('.bl-con-line'))
+        .map(el => el.textContent).join('\n');
+      navigator.clipboard.writeText(text)
+        .then(() => showToast('📋 Console log copied!'))
+        .catch(() => showToast('Copy failed — try selecting manually'));
+    }
+
+    /* ── ZIP filename: "{safe_title}_{id}.zip" ── */
+    function blZipName(prompt) {
+      const safe = (prompt.title || 'prompt')
+        .replace(/[^a-zA-Z0-9_\-]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '')
+        .slice(0, 40) || 'prompt';
+      return `${safe}_${prompt.id}.zip`;
+    }
+
+    /* ── Pack one prompt into a ZIP and upload it ── */
+    async function uploadSinglePrompt(prompt, key) {
+      const zip = new JSZip();
+
+      // 1. Add every image to the ZIP (if present) — up to 5
+      const images     = getImages(prompt);
+      const imageFiles  = [];
+      images.forEach((dataUrl, idx) => {
+        if (!dataUrl || !dataUrl.startsWith('data:image')) return;
+        const header  = dataUrl.split(',')[0];
+        const b64     = dataUrl.split(',')[1];
+        const mime    = (header.match(/:(image\/[\w+]+);/) || [])[1] || 'image/png';
+        const ext     = mime.split('/')[1].replace('jpeg', 'jpg').replace('svg+xml', 'svg');
+        const fname   = `image_${idx + 1}.${ext}`;
+
+        const byteStr = atob(b64);
+        const bytes   = new Uint8Array(byteStr.length);
+        for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
+        zip.file(fname, bytes);
+        imageFiles.push(fname);
+        blLog(`  + ${fname} (${mime})`, 'info');
+      });
+
+      // 2. Add prompt.json — imageFiles[] links record to its images inside the ZIP
+      //    (imageFile singular kept for backward-compat with older fetch logic)
+      const record = {
+        promptId  : prompt.id,
+        title     : prompt.title    || 'Untitled',
+        content   : prompt.content  || '',
+        tags      : prompt.tags     || [],
+        imageFiles: imageFiles,             // [] when no images
+        imageFile : imageFiles[0] || null,  // legacy single-image compat
+        isVault   : !!prompt.isVault,
+        createdAt : normalizeStamp(prompt.createdAt)   // human-readable "YYYY-MM-DD_HH:MM:SS"
+      };
+      zip.file('prompt.json', JSON.stringify(record, null, 2));
+      blLog(`  + prompt.json`, 'info');
+
+      // 3. Generate ZIP blob
+      const zipBlob = await zip.generateAsync({ type: 'blob', compression: 'DEFLATE', compressionOptions: { level: 6 } });
+      const zipName = blZipName(prompt);
+
+      // 4. Route to prompts/normal or prompts/vault subfolder
+      const subFolder  = prompt.isVault ? 'vault' : 'normal';
+      const uploadPath = `${BL_FOLDER}/${subFolder}`;
+      blLog(`  → Uploading ${zipName} → /${uploadPath}/ (${(zipBlob.size / 1024).toFixed(1)} KB)`, 'info');
+
+      // 5. POST to Backendless Files
+      const fd  = new FormData();
+      fd.append('file', zipBlob, zipName);
+      const resp = await fetch(
+        `${getBLBase()}/${key}/files/${uploadPath}/${zipName}?overwrite=true`,
+        { method: 'POST', body: fd }
+      );
+
+      if (!resp.ok) {
+        const errTxt = await resp.text().catch(() => '');
+        blLog(`  ✗ HTTP ${resp.status}: ${errTxt.slice(0, 200)}`, 'err');
+        throw new Error(`ZIP upload failed (${resp.status})`);
+      }
+
+      blLog(`  ✓ Saved: /${uploadPath}/${zipName}${imageFiles.length ? ` + ${imageFiles.length} image(s)` : ''}`, 'ok');
+      return true;
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       UPLOAD CHOICE OVERLAY
+       Box background changes colour based on selected scope.
+    ═══════════════════════════════════════════════════════════ */
+    const UC_THEMES = {
+      normal: {
+        overlay: 'rgba(8, 20, 42, 0.88)',
+        box    : 'linear-gradient(150deg,#1C3D64 0%,#102540 100%)'
+      },
+      vault: {
+        overlay: 'rgba(14, 7, 32, 0.88)',
+        box    : 'linear-gradient(150deg,#2E1A50 0%,#1A0C30 100%)'
+      },
+      both: {
+        overlay: 'rgba(4, 18, 18, 0.88)',
+        box    : 'linear-gradient(150deg,#0E3232 0%,#082020 100%)'
+      }
+    };
+
+    let _ucScope = 'both';
+
+    function showUploadChoice() {
+      const key = getBackendlessKey();
+      if (!key) {
+        showToast('⚠️ Enter a Backendless REST API key first');
+        document.getElementById('bl-api-key-input')?.focus();
+        return;
+      }
+
+      const nCount = LS.getPrompts().length;
+      const vCount = LS.getVault().length;
+
+      if (!nCount && !vCount) { showToast('No prompts to upload'); return; }
+
+      document.getElementById('uc-n-count').textContent = nCount;
+      document.getElementById('uc-v-count').textContent = vCount;
+      document.getElementById('uc-b-count').textContent = nCount + vCount;
+
+      // Dim unavailable options
+      ['normal','vault'].forEach(s => {
+        const cnt   = s === 'normal' ? nCount : vCount;
+        const el    = document.getElementById(`uc-opt-${s}`);
+        el.style.opacity       = cnt ? '' : '0.38';
+        el.style.pointerEvents = cnt ? '' : 'none';
+      });
+
+      applyUCScope('both');
+      document.getElementById('uc-overlay').style.display = 'flex';
+    }
+
+    function applyUCScope(scope) {
+      _ucScope = scope;
+      const t   = UC_THEMES[scope];
+      document.getElementById('uc-overlay').style.background = t.overlay;
+      document.getElementById('uc-box').style.background     = t.box;
+      ['normal','vault','both'].forEach(s =>
+        document.getElementById(`uc-opt-${s}`)?.classList.toggle('sel', s === scope)
+      );
+    }
+
+    function closeUploadChoice() {
+      document.getElementById('uc-overlay').style.display = 'none';
+    }
+
+    function confirmUploadScope() {
+      closeUploadChoice();
+      backendlessUpload(_ucScope);
+    }
+
+    /* ═══════════════════════════════════════════════════════════
+       DELETE ALL LOCAL DATA
+    ═══════════════════════════════════════════════════════════ */
+    function showDeleteAllModal() {
+      showModal(
+        '⚠️ Delete All Data?',
+        'This will permanently erase <b>all prompts</b>, your <b>vault</b>, your <b>PIN</b>, and all app settings. This cannot be undone.',
+        null, 'Cancel', 'btn-text'
+      );
+      document.getElementById('modal-cancel-btn').onclick = closeModal;
+      document.getElementById('modal-confirm-btn').style.display = 'none';
+      document.getElementById('modal-custom-content').innerHTML = `
+        <div style="margin-top:14px;display:flex;flex-direction:column;gap:10px">
+          <div style="background:var(--clr-error-dim);border:1.5px solid var(--clr-error);
+                      border-radius:var(--rad-md);padding:12px 14px;font-size:13px;
+                      color:var(--clr-error);font-weight:700;line-height:1.55">
+            Consider uploading to Backendless first so you can restore later.
+          </div>
+          <button class="btn btn-danger btn-full" style="font-size:14px;padding:13px"
+                  onclick="confirmDeleteAll()">
+            Yes, Delete Everything
+          </button>
+        </div>`;
+    }
+
+    function confirmDeleteAll() {
+      closeModal();
+      Object.keys(localStorage)
+        .filter(k => k.startsWith('prompy_'))
+        .forEach(k => localStorage.removeItem(k));
+      showToast('🗑 All local data deleted');
+      setTimeout(() => window.location.reload(), 1400);
+    }
+
+    /* ── Upload all prompts (scope: 'normal' | 'vault' | 'both') ── */
+    async function backendlessUpload(scope = 'both') {
+      const key = getBackendlessKey();
+      if (!key) {
+        blLog('ERROR: No REST API key set.', 'err');
+        showToast('⚠️ Enter a Backendless REST API key first');
+        document.getElementById('bl-api-key-input')?.focus();
+        return;
+      }
+
+      let prompts = [];
+      if (scope === 'normal' || scope === 'both')
+        prompts.push(...LS.getPrompts().map(p => ({ ...p, isVault: false })));
+      if (scope === 'vault'  || scope === 'both')
+        prompts.push(...LS.getVault().map(p  => ({ ...p, isVault: true  })));
+
+      if (!prompts.length) {
+        blLog('No prompts found for the selected scope.', 'warn');
+        showToast('No prompts to upload');
+        return;
+      }
+
+      const total = prompts.length;
+      blLog(`─── Starting upload: ${total} prompt(s) ───`, 'info');
+      blLog(`Key: …${key.slice(-6)}  |  Folders: /${BL_FOLDER}/normal/, /${BL_FOLDER}/vault/`, 'info');
+      blSetBadge(0, total);
+      blShowChip(`Uploading 0/${total}…`);
+
+      let success = 0, failed = 0;
+
+      for (let i = 0; i < prompts.length; i++) {
+        const p = prompts[i];
+        blLog(`[${i + 1}/${total}] "${p.title || 'Untitled'}" (${p.id})`, 'log');
+        blShowChip(`Uploading ${i + 1}/${total}…`);
+        blSetBadge(i + 1, total);
+        try {
+          await uploadSinglePrompt(p, key);
+          success++;
+        } catch (e) {
+          blLog(`  ✗ FAILED: ${e.message}`, 'err');
+          failed++;
+        }
+      }
+
+      blHideChip();
+      blSetBadge(null);
+
+      if (failed === 0) {
+        blLog(`─── Upload complete: ${success}/${total} OK ───`, 'ok');
+        showToast(`✅ Uploaded ${success} prompt${success !== 1 ? 's' : ''}!`);
+      } else {
+        blLog(`─── Done: ${success} OK, ${failed} FAILED ───`, 'warn');
+        showToast(`⚠️ ${success} uploaded, ${failed} failed — see console`);
+      }
+    }
+
+    /* ── Fetch feed: download each ZIP, unzip, restore prompt + image ── */
+    async function backendlessFetch() {
+      const key = getBackendlessKey();
+      if (!key) {
+        blLog('ERROR: No REST API key set.', 'err');
+        showToast('⚠️ Enter a Backendless REST API key first');
+        document.getElementById('bl-api-key-input')?.focus();
+        return;
+      }
+
+      blLog('─── Listing ZIPs in Backendless… ───', 'info');
+      blShowChip('Fetching feed…');
+
+      /* ── Helper: list all ZIPs from one subfolder ── */
+      async function listSubfolder(sub) {
+        const folder = `${BL_FOLDER}/${sub}`;
+        let files = [], offset = 0;
+        const PAGE = 100;
+        while (true) {
+          const listUrl  = `${getBLBase()}/${key}/files/${folder}?pageSize=${PAGE}&offset=${offset}&pattern=*.zip&sub=false`;
+          blLog(`GET ${listUrl}`, 'log');
+          const resp = await fetch(listUrl);
+          blLog(`List /${sub}/: ${resp.status}`, resp.ok ? 'ok' : 'err');
+          if (!resp.ok) {
+            const t = await resp.text().catch(() => '');
+            // 404 just means the subfolder doesn't exist yet — not a fatal error
+            if (resp.status === 404) { blLog(`  → /${sub}/ not found — skipping`, 'warn'); return []; }
+            throw new Error(`List /${sub}/ failed (${resp.status}): ${t.slice(0, 200)}`);
+          }
+          const page = await resp.json();
+          if (!Array.isArray(page) || !page.length) break;
+          // Tag each file with its subfolder so we can build the right URL later
+          files = files.concat(page.map(f => ({ ...f, _sub: sub })));
+          if (page.length < PAGE) break;
+          offset += PAGE;
+        }
+        return files;
+      }
+
+      try {
+        // ── 1. List from BOTH subfolders ──────────────────────────────────
+        const [normalFiles, vaultFiles] = await Promise.all([
+          listSubfolder('normal'),
+          listSubfolder('vault')
+        ]);
+        const allFiles = [...normalFiles, ...vaultFiles];
+
+        blLog(`Found ${allFiles.length} ZIP file(s) total (${normalFiles.length} normal + ${vaultFiles.length} vault).`,
+              allFiles.length ? 'info' : 'warn');
+
+        if (!allFiles.length) {
+          blHideChip();
+          showToast('Feed is empty');
+          return;
+        }
+
+        // ── 2. Download + unzip each file ────────────────────────────────
+        const existing = LS.getPrompts();
+        const vault    = LS.getVault();
+        let added = 0;
+
+        for (let i = 0; i < allFiles.length; i++) {
+          const file    = allFiles[i];
+          const name    = file.name    || '';
+          const sub     = file._sub    || 'normal';
+          const folder  = `${BL_FOLDER}/${sub}`;
+          const fileUrl = file.publicUrl
+            || `${getBLBase()}/${key}/files/${folder}/${encodeURIComponent(name)}`;
+
+          blShowChip(`Fetching ${i + 1}/${allFiles.length}…`);
+          blLog(`[${i + 1}/${allFiles.length}] /${sub}/${name}`, 'log');
+
+          if (!name.endsWith('.zip')) {
+            blLog('  → Skipping non-ZIP', 'warn');
+            continue;
+          }
+
+          try {
+            const dlResp = await fetch(fileUrl);
+            if (!dlResp.ok) {
+              blLog(`  ✗ Download failed (${dlResp.status})`, 'err');
+              continue;
+            }
+
+            const arrayBuf = await dlResp.arrayBuffer();
+            const zip      = await JSZip.loadAsync(arrayBuf);
+
+            const jsonEntry = zip.file('prompt.json');
+            if (!jsonEntry) {
+              blLog('  ✗ No prompt.json inside ZIP', 'err');
+              continue;
+            }
+
+            const jsonStr = await jsonEntry.async('string');
+            const record  = JSON.parse(jsonStr);
+            const id      = record.promptId || record.id || uid();
+            const targetVault = record.isVault === true || record.isVault === 'true' || sub === 'vault';
+
+            const inExistingIdx = existing.findIndex(p => p.id === id);
+            const inVaultIdx    = vault.findIndex(p => p.id === id);
+
+            if (inExistingIdx >= 0 || inVaultIdx >= 0) {
+              if ((targetVault && inVaultIdx >= 0) || (!targetVault && inExistingIdx >= 0)) {
+                blLog(`  ↷ Skipped duplicate: "${record.title}"`, 'warn');
+                continue;
+              }
+              // If it exists in the wrong list, remove it so it can be added to the right one
+              if (targetVault && inExistingIdx >= 0) {
+                existing.splice(inExistingIdx, 1);
+                blLog(`  ⇄ Moving "${record.title}" from normal to vault`, 'info');
+              } else if (!targetVault && inVaultIdx >= 0) {
+                vault.splice(inVaultIdx, 1);
+                blLog(`  ⇄ Moving "${record.title}" from vault to normal`, 'info');
+              }
+            }
+
+            // Restore every image listed in imageFiles[] (new format),
+            // falling back to the legacy single imageFile field for old ZIPs.
+            const fileList = Array.isArray(record.imageFiles) && record.imageFiles.length
+              ? record.imageFiles
+              : (record.imageFile ? [record.imageFile] : []);
+
+            const images = [];
+            for (const fname of fileList) {
+              const imgEntry = zip.file(fname);
+              if (!imgEntry) {
+                blLog(`  ✗ image "${fname}" not found inside ZIP`, 'warn');
+                continue;
+              }
+              const ext  = fname.split('.').pop().toLowerCase();
+              const mime = ext === 'jpg' ? 'image/jpeg'
+                         : ext === 'png' ? 'image/png'
+                         : ext === 'gif' ? 'image/gif'
+                         : ext === 'webp'? 'image/webp'
+                         : 'image/png';
+              const b64  = await imgEntry.async('base64');
+              images.push(`data:${mime};base64,${b64}`);
+              blLog(`  ✓ Image restored: ${fname}`, 'ok');
+            }
+
+            const p = {
+              id,
+              title    : record.title    || 'Untitled',
+              content  : record.content  || '',
+              tags     : Array.isArray(record.tags) ? record.tags : [],
+              images   : images,
+              createdAt: normalizeStamp(record.createdAt)   // normalise legacy/ms/seconds → readable string
+            };
+
+            // Honour isVault from record OR derive from subfolder
+            if (targetVault) vault.push(p);
+            else             existing.push(p);
+            added++;
+            blLog(`  ✓ Added: "${p.title}"${images.length ? ` 🖼×${images.length}` : ''} → ${targetVault ? 'vault' : 'normal'}`, 'ok');
+
+          } catch (e) {
+            blLog(`  ✗ Error on "${name}": ${e.message}`, 'err');
+          }
+        }
+
+        // ── 3. Save & re-render ──────────────────────────────────────────
+        blLog(`Final counts: ${existing.length} normal, ${vault.length} vault. Saving...`, 'info');
+        LS.setPrompts(existing);
+        LS.setVault(vault);
+
+        // Force clear filters when fetching to ensure new prompts are seen
+        State.searchTags = [];
+
+        renderDashboard();
+        renderVault();
+
+        const currentVault = LS.getVault();
+        const success = currentVault.length === vault.length;
+        blLog(`Verification: Vault now contains ${currentVault.length} prompts.`, success ? 'ok' : 'err');
+
+        if (!success && vault.length > 0) {
+            blLog(`CRITICAL: Data was NOT saved to device! This might be due to a storage error or filesystem permission issue.`, 'err');
+            showToast('⚠️ Storage error: Could not save data');
+        }
+
+        blHideChip();
+        blLog(`─── Done: ${added} new prompt(s) added ───`, added > 0 ? 'ok' : 'info');
+        showToast(added > 0
+          ? `✅ Added ${added} prompt${added !== 1 ? 's' : ''} from feed`
+          : '✓ Feed is up to date');
+
+      } catch (e) {
+        console.error(e);
+        blLog(`FATAL: ${e.message}`, 'err');
+        blHideChip();
+        showToast('❌ Feed fetch failed — see console');
+      }
+    }
+
+    /* ════════════════════════════════════════════════════════
        INIT
     ════════════════════════════════════════════════════════ */
     initDarkMode();
@@ -3244,11 +4725,52 @@
     initAdvancedSettings();
     renderDashboard();
 
+    function hideLoadingScreen() {
+      const el = document.getElementById('loading-screen');
+      if (!el) return;
+      el.classList.add('hidden');
+      setTimeout(() => el.remove(), 500);
+    }
+    // Small delay to ensure first paint is smooth
+    window.addEventListener('load', () => setTimeout(hideLoadingScreen, 600));
+
+    /* ── Silent background migration: any legacy/numeric timestamp →
+       human-readable "YYYY-MM-DD_HH:MM:SS" string, one prompt at a time ── */
+    const STAMP_RE = /^\d{4}-\d{2}-\d{2}_\d{2}:\d{2}:\d{2}$/;
+    function needsStampMigration(p) {
+      return (p.createdAt && !STAMP_RE.test(String(p.createdAt))) ||
+             (p.updatedAt && !STAMP_RE.test(String(p.updatedAt)));
+    }
+    function migrateOldTimestamps() {
+      const queue = [];
+      LS.getPrompts().forEach(p => { if (needsStampMigration(p)) queue.push({ type: 'normal', id: p.id }); });
+      LS.getVault().forEach(p =>    { if (needsStampMigration(p)) queue.push({ type: 'vault',  id: p.id }); });
+      if (!queue.length) return;
+
+      let i = 0;
+      function migrateNext() {
+        if (i >= queue.length) return;
+        const { type, id } = queue[i++];
+        const arr = type === 'vault' ? LS.getVault() : LS.getPrompts();
+        const idx = arr.findIndex(p => p.id === id);
+        if (idx >= 0) {
+          if (arr[idx].createdAt) arr[idx].createdAt = normalizeStamp(arr[idx].createdAt);
+          if (arr[idx].updatedAt) arr[idx].updatedAt = normalizeStamp(arr[idx].updatedAt);
+          type === 'vault' ? LS.setVault(arr) : LS.setPrompts(arr);
+        }
+        setTimeout(migrateNext, 120);  // stagger each write 120 ms apart, silent
+      }
+      setTimeout(migrateNext, 1500);   // start 1.5 s after page load
+    }
+    migrateOldTimestamps();
+
     window.addEventListener('popstate', function(event) {
       if (document.getElementById('modal-overlay').classList.contains('show')) {
         closeModal(true);
       } else if (document.getElementById('filter-sheet-overlay').classList.contains('show')) {
         closeFilterSheet(true);
+      } else if (State.selectionMode) {
+        exitSelectionMode(true);
       } else if (isOpen('screen-about')) {
         closeAbout(true);
       } else if (isOpen('screen-advanced')) {
@@ -3263,6 +4785,8 @@
         closePinSetup(true);
       } else if (isOpen('screen-pin-entry')) {
         closePinEntry(true);
+      } else if (isOpen('screen-vault-settings')) {
+        closeVaultSettings(true);
       } else if (isOpen('screen-vault')) {
         closeVault(true);
       } else if (isOpen('screen-settings')) {
@@ -3270,5 +4794,63 @@
       }
     });
 </script>
+<!-- Upload progress chip -->
+<div id="bl-progress-chip" class="bl-progress-chip" style="display:none">
+    <div class="bl-progress-spinner"></div>
+    <span id="bl-progress-text">Uploading 0/0…</span>
+</div>
+
+<!-- ═══ UPLOAD CHOICE OVERLAY ═══ -->
+<div id="uc-overlay" class="uc-overlay" style="display:none"
+     onclick="if(event.target===this)closeUploadChoice()">
+    <div class="uc-box" id="uc-box">
+        <div class="uc-head">
+            <h2>Upload to Backendless</h2>
+            <p>Select which prompts to push to the server</p>
+        </div>
+
+        <div class="uc-option" id="uc-opt-normal" onclick="applyUCScope('normal')">
+            <div class="uc-opt-ico">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6c-1.1 0-2 .9-2 2v16c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V8l-6-6zm2 16H8v-2h8v2zm0-4H8v-2h8v2zm-3-5V3.5L18.5 9H13z"/></svg>
+            </div>
+            <div class="uc-opt-lbl">
+                <h3>Normal Prompts</h3>
+                <p>Your regular collection</p>
+            </div>
+            <span class="uc-badge" id="uc-n-count">0</span>
+            <div class="uc-check"><svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg></div>
+        </div>
+
+        <div class="uc-option" id="uc-opt-vault" onclick="applyUCScope('vault')">
+            <div class="uc-opt-ico">
+                <svg viewBox="0 0 24 24"><path d="M18 8h-1V6c0-2.76-2.24-5-5-5S7 3.24 7 6v2H6c-1.1 0-2 .9-2 2v10c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2V10c0-1.1-.9-2-2-2zm-6 9c-1.1 0-2-.9-2-2s.9-2 2-2 2 .9 2 2-.9 2-2 2zm3.1-9H8.9V6c0-1.71 1.39-3.1 3.1-3.1 1.71 0 3.1 1.39 3.1 3.1v2z"/></svg>
+            </div>
+            <div class="uc-opt-lbl">
+                <h3>Vault Prompts</h3>
+                <p>Your secured vault contents</p>
+            </div>
+            <span class="uc-badge" id="uc-v-count">0</span>
+            <div class="uc-check"><svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg></div>
+        </div>
+
+        <div class="uc-option sel" id="uc-opt-both" onclick="applyUCScope('both')">
+            <div class="uc-opt-ico">
+                <svg viewBox="0 0 24 24"><path d="M19.35 10.04A7.49 7.49 0 0 0 12 4C9.11 4 6.6 5.64 5.35 8.04A5.994 5.994 0 0 0 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/></svg>
+            </div>
+            <div class="uc-opt-lbl">
+                <h3>Upload Both</h3>
+                <p>Normal and vault combined</p>
+            </div>
+            <span class="uc-badge" id="uc-b-count">0</span>
+            <div class="uc-check"><svg viewBox="0 0 24 24"><path d="M9 16.2L4.8 12l-1.4 1.4L9 19 21 7l-1.4-1.4L9 16.2z"/></svg></div>
+        </div>
+
+        <div class="uc-actions">
+            <button class="uc-cancel" onclick="closeUploadChoice()">Cancel</button>
+            <button class="uc-upload" onclick="confirmUploadScope()">Upload</button>
+        </div>
+    </div>
+</div>
+
 </body>
 </html>

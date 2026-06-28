@@ -547,6 +547,30 @@ class MainActivity : AppCompatActivity() {
 
     inner class WebAppInterface(private val mContext: Context) {
         @JavascriptInterface
+        fun savePromptsToFile(type: String, jsonStr: String) {
+            try {
+                val fileName = if (type == "vault") "vault_prompts.json" else "normal_prompts.json"
+                val file = File(mContext.filesDir, fileName)
+                FileOutputStream(file).use { it.write(jsonStr.toByteArray()) }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        @JavascriptInterface
+        fun loadPromptsFromFile(type: String): String {
+            try {
+                val fileName = if (type == "vault") "vault_prompts.json" else "normal_prompts.json"
+                val file = File(mContext.filesDir, fileName)
+                if (!file.exists()) return "[]"
+                return file.readText()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                return "[]"
+            }
+        }
+
+        @JavascriptInterface
         fun setBiometricEnabled(enabled: Boolean) {
             val sharedPrefs = mContext.getSharedPreferences("prompy_settings", Context.MODE_PRIVATE)
             sharedPrefs.edit().putBoolean("biometric_enabled", enabled).apply()
